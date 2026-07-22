@@ -5,6 +5,7 @@ Turtle is an AI assistant program focused on specific tasks that runs locally on
 > [!WARNING]
 > 32 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 32 GB WILL SEE PERFORMANCE ISSUES.
 
+<img width="1400" height="350" alt="Screenshot 2026-07-22 at 6 42 37 PM" src="https://github.com/user-attachments/assets/74edac52-fc71-48b8-b9c6-c96bb795c949" />
 
 ### What is turtle?
 
