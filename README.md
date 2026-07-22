@@ -33,6 +33,47 @@ Turtle Forge is used with the model called "Qwen2.5-Coder-32B-Instruct-Q4_K_M", 
 
 ***
 
+## EXAMPLE RUN:
+
+Here is an example of the turtle in use. In this example I tell it to create a calculator written in rust. Turtle returned back the code in a copy/paste ready format however it did make 1 mistake that I had to correct. In "main.rs" there was an error on line 2. I had to change ```use anyhow::Result;``` to ```use anyhow::{Result, anyhow};```. A simple and quick one line fix, the response wasn't perfect but for a local model it performed very well. 
+
+### Starting turtle
+
+<img width="1539" height="276" alt="Screenshot 2026-07-22 at 7 42 04 PM" src="https://github.com/user-attachments/assets/34e088bc-2c74-46d7-bd1f-5f46d677b59c" />
+
+### turtle implementing a plan to "create a simple calculator"
+
+<img width="1513" height="311" alt="Screenshot 2026-07-22 at 7 42 26 PM" src="https://github.com/user-attachments/assets/ecf0f113-f3b8-4d91-86cb-f074ce061a6f" />
+
+### turtle building, testing and debugging
+
+<img width="1309" height="458" alt="Screenshot 2026-07-22 at 7 43 48 PM" src="https://github.com/user-attachments/assets/8ee244ff-382c-4695-9e67-74ea49feaea6" />
+
+> [!IMPORTANT]
+> MISSED 1 BUG!
+> changed ```use anyhow::Result;``` to ```use anyhow::{Result, anyhow};```
+
+
+
+## turtle finished results
+### Cargo.toml
+
+ <img width="506" height="220" alt="Screenshot 2026-07-22 at 7 42 44 PM" src="https://github.com/user-attachments/assets/7c29f4a6-0762-427b-bbb5-fee5800bf87e" />
+
+ ### src/main.rs
+
+ <img width="542" height="561" alt="Screenshot 2026-07-22 at 7 43 23 PM" src="https://github.com/user-attachments/assets/0aed20b7-c23b-4049-ba77-81c11c37588b" />
+
+<img width="486" height="443" alt="Screenshot 2026-07-22 at 7 43 35 PM" src="https://github.com/user-attachments/assets/54d0f118-aac4-4d7c-a75b-bcc7c26cc387" />
+
+### Usage / Results
+
+<img width="629" height="134" alt="Screenshot 2026-07-22 at 7 41 13 PM" src="https://github.com/user-attachments/assets/6c2481e7-08cf-4a2d-a7df-7affc28eb88d" />
+
+ 
+
+
+
 ## Installation & Setup
 
 In order to download and use turtle you must have Homebrew, Rust, Odin, Xcode(MacOS).
