@@ -1,9 +1,9 @@
 ## Welcome to turtle 🐢
 
-Turtle is an AI assistant program focused on specific tasks that runs locally on your device. Other general flagship models are way faster, yes I know, but with turtle you don't have your information and data being used to train other models. You can use turtle offline with no API keys and you have full control over the agent's harness. Flagship models don't offer this, sometimes being slower is better. Turtle plans a project road map, implements the features, tests and debugs the code for you, and then returns a finished complete project ready for you to copy and paste. The big difference with turtle is that you don't need to give turtle system wide access to read,write, and compile code, this means an AI model can't delete all your files by accident like *cough* other companies *cough*
+Turtle is an AI assistant program focused on specific tasks that runs locally on your device. Other general flagship models are way faster, yes I know, but with turtle you don't have your information and data being used to train other models. You can use turtle offline with no API keys and you have full control over the agent's harness. Flagship models don't offer this, sometimes being slower is better. The big difference with turtle is that you don't need to give turtle system wide access to read,write, and compile code, this means an AI model can't delete all your files by accident like *cough* other companies *cough*
 
 > [!WARNING]
-> 16 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 16 GB WILL SEE PERFORMANCE ISSUES.
+> 32 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 32 GB WILL SEE PERFORMANCE ISSUES.
 
 
 ### What is turtle?
@@ -56,13 +56,16 @@ cd turtle
 git clone https://github.com/ooofruitsnacks/turtle.git
  ```
 
-### Install AI Model Onto Your Device
+### Install The AI Model Onto Your Device
 
 ```
 hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
 ```
 
 After it downloads, drag and drop the file into the models sub-directory of turtle or use ```mv```
+
+<img width="400" height="220" alt="Screenshot 2026-07-22 at 6 35 33 PM" src="https://github.com/user-attachments/assets/66755faf-db2a-4027-bd56-22f1e5b7c4f7" />
+
 
 ### Enable GPU Acceleration
 
