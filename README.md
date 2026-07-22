@@ -56,6 +56,13 @@ cd turtle
 git clone https://github.com/ooofruitsnacks/turtle.git
  ```
 
+### Install AI Model Onto Your Device
+
+```
+hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
+```
+
+After it downloads, drag and drop the file into the models sub-directory of turtle or use ```mv```
 
 ### Enable GPU Acceleration
 
