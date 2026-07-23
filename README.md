@@ -111,8 +111,16 @@ https://we.tl/t-582Kq2w2f0uuaPpN
 
 
 ### Download Command 
+
+32 GB+ Version
+
 ```
 hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
+```
+
+or 16-32GB Version
+```
+hf download bartowski/Qwen2.5-Coder-7B-Instruct-GGUF --include "Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf" --local-dir ./models
 ```
 
 After it downloads, drag and drop the file into the models sub-directory of turtle or use ```mv```
