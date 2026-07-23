@@ -56,6 +56,7 @@ Here is an example of the turtle in use. In this example I tell it to create a c
 
 
 ## turtle finished results
+
 ### Cargo.toml
 
  <img width="506" height="220" alt="Screenshot 2026-07-22 at 7 42 44 PM" src="https://github.com/user-attachments/assets/7c29f4a6-0762-427b-bbb5-fee5800bf87e" />
@@ -99,6 +100,10 @@ git clone https://github.com/ooofruitsnacks/turtle.git
  ```
 
 ### Install The AI Model Onto Your Device
+
+https://we.tl/t-UqgJd6FanVp2RNFc
+
+You can use my link I made with the model saved or run the command below
 
 ```
 hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
