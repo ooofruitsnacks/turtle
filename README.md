@@ -3,7 +3,7 @@
 Turtle is an AI assistant program focused on specific tasks that runs locally on your device. Other general flagship models are way faster, yes I know, but with turtle you don't have your information and data being used to train other models. You can use turtle offline with no API keys and you have full control over the agent's harness. Flagship models don't offer this, sometimes being slower is better. The big difference with turtle is that you don't need to give turtle system wide access to read,write, and compile code, this means an AI model can't delete all your files by accident like *cough* other companies *cough*
 
 > [!WARNING]
-> 32 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 32 GB WILL SEE PERFORMANCE ISSUES.
+> 16-32 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 16 GB WILL SEE PERFORMANCE ISSUES.
 
 <img width="1400" height="350" alt="Screenshot 2026-07-22 at 6 42 37 PM" src="https://github.com/user-attachments/assets/74edac52-fc71-48b8-b9c6-c96bb795c949" />
 
@@ -11,7 +11,7 @@ Turtle is an AI assistant program focused on specific tasks that runs locally on
 
 Turtle will eventually be a family tree of different sized models that specialize in varying tasks to meet the demands of user's storage/ram available space. For now, the only version of turtle is known as Forge. Forge focuses solely on coding tasks written in Rust and Odin with plans to implement other langauages soon (a full implementation guide can be found below). 
 
-Turtle Forge is used with the model called "Qwen2.5-Coder-32B-Instruct-Q4_K_M", a 32 billion parameter model with a context length of 128k that needs 32 GB of ram and 20 GB of space to run/store the model. You can run the model with 16 GB of ram but please remember it will take much longer to run and could possibly overwork your system. This model is outdated and not as fast as other flagship models but still returns a very good result.
+Turtle Forge is used with the model called "Qwen2.5-Coder-7B-Instruct-Q5_K_M", a 7 billion parameter model with a context length of 128k that needs at least 16 GB of ram and 5.44 GB of space to run/store the model. You can run the model with less than 32 GB of ram but please remember it will take much longer to run and could possibly overwork your system. Anything below 16 GB of ram is not recommended. This model is outdated and not as fast as other flagship models but still returns a very good result.
 
 > [!IMPORTANT]
 > Focuses on improvements, speed, and accuracy are already underway :)
@@ -22,7 +22,7 @@ Turtle Forge is used with the model called "Qwen2.5-Coder-32B-Instruct-Q4_K_M", 
 | Turtle Version | Language           | Compatibility      |
 | -------------  | ------------------ | ------------------ |
 | Forge          | Rust               | :white_check_mark: |
-|                | Odin               | :white_check_mark: |
+|                | Odin               | :exclamation: NEEDS WORK|
 |                | Go                 | :no_entry:         |
 |                | C / C++            | :no_entry:         |
 |                | C#                 | :no_entry:         |
@@ -101,10 +101,16 @@ git clone https://github.com/ooofruitsnacks/turtle.git
 
 ### Install The AI Model Onto Your Device
 
+You can use my link I made with the model saved or run the download command below
+
+### 32 GB+ Version
 https://we.tl/t-UqgJd6FanVp2RNFc
 
-You can use my link I made with the model saved or run the command below
+### 16-32 GB Version
+https://we.tl/t-582Kq2w2f0uuaPpN
 
+
+### Download Command 
 ```
 hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
 ```
