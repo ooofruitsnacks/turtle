@@ -45,7 +45,7 @@ Here is an example of the turtle in use. In this example I tell it to create a c
 
 <img width="1513" height="311" alt="Screenshot 2026-07-22 at 7 42 26 PM" src="https://github.com/user-attachments/assets/ecf0f113-f3b8-4d91-86cb-f074ce061a6f" />
 
-### turtle building, testing and debugging
+### turtle building / testing / debugging
 
 <img width="1309" height="458" alt="Screenshot 2026-07-22 at 7 43 48 PM" src="https://github.com/user-attachments/assets/8ee244ff-382c-4695-9e67-74ea49feaea6" />
 
@@ -75,7 +75,7 @@ Here is an example of the turtle in use. In this example I tell it to create a c
 
 
 
-## Installation & Setup
+## Installation / Setup
 
 In order to download and use turtle you must have Homebrew, Rust, Odin, Xcode(MacOS).
 
@@ -128,7 +128,7 @@ xcodebuild -downloadComponent MetalToolchain
 ```
 
 > [!IMPORTANT]
-> APPLE SILICON ONLY. LINUX/WINDOWS BELOW.
+> APPLE SILICON ONLY! LINUX/WINDOWS BELOW!
 
 ### NVIDIA Linux/Windows GPU Acceleration: 
 
