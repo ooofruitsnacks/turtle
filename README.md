@@ -173,7 +173,7 @@ Run the source string.
 EXAMPLE STRING:
 ```
 cargo run --release -- \                                                                                                                                             ─╯
-  --model ./models/Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf \ 
+  --model ./models/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf \ 
   --chat-template ./models/qwen_chat_template.json \
   --language rust \
   --project ./out
@@ -187,7 +187,7 @@ For example this string below is using rust, if you want to use Odin simply chan
 
 ```cargo run --release -- \``` tells turtle to run the release version you built earlier
 
-```--model ./models/Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf \``` tells turtle what model to use
+```--model ./models/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf \``` tells turtle what model to use
 
 ```--chat-template ./models/qwen_chat_template.json \``` tells turtle what model chat template/harness to use
 
