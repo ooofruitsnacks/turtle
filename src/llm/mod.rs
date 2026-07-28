@@ -1,8 +1,8 @@
-use anyhow::Result;
-use async_trait::async_trait;
-
-pub mod local;
 pub mod mock;
+pub mod ollama;
+
+use async_trait::async_trait;
+use anyhow::Result;
 
 #[async_trait]
 pub trait LlmBackend: Send + Sync {
