@@ -19,6 +19,13 @@ Yes! and No! You will need an internet connection in order to download your mode
 ***
 
 ## How to use Forge Ollama:
+
+```
+git clone -b Forge-Ollama https://github.com/ooofruitsnacks/turtle.git
+```
+
+and then run ```cd turtle``` followed by ```cargo build --release``` in your terminal
+
 >[!NOTE]
 >Create a new folder/sub-directory within turtle-ollama named models and save your model .gguf inside of that folder/sub-directory. Unlike Forge Mistral there is no need for chat instructions.
 
