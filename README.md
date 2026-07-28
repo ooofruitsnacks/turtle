@@ -2,6 +2,8 @@
 >[!IMPORTANT]
 >APPLE SILICON ONLY CURRENTLY
 
+### Setup Guide: https://youtu.be/GWjyLu_NDO4
+
 Everything you're familiar with in the original Forge version (now known as Forge Mistral) but optimized for Ollama backend support. This release note will provide all the information you need to get turtle up and running to Forge Ollama so be sure to read through everything. Don't feel pressured to switch back over though, I'm providing support for both Forge Ollama and Forge Mistral :) 
 
 ## Why an Ollama version? What's the difference between Mistral?
