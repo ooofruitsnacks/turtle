@@ -53,6 +53,12 @@ ollama serve
 
 Confirm the server is operational by checking for ``` listening on 127.0.0.1:11434 ```
 
+Download the embedding model before running/pulling model
+
+```
+ollama pull nomic-embed-text
+```
+
 ### In a new terminal tab, pull/download your AI Model. 
 
 I recommend qwen3-coder30b on apple silicon with 32GB of unified memory/ram, currently it has performed well. 
