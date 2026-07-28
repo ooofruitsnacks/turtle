@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> Please go to the releases section for a full step by step guide for installation, setup, and usage. There are now 2 versions of turtle but I don't want to deal with setting up docker images and containers to create packages so we're doing it this way lol.
+> Go to the releases section for a full step by step installation, setup, and usage guide. There are now 2 versions of turtle but I don't want to deal with setting up docker images and containers to create packages so we're doing it this way lol.
 
 ## Welcome to turtle 🐢
 
@@ -8,6 +8,16 @@ Turtle is an AI assistant program focused on specific tasks that runs locally on
 ### What is turtle?
 
 Turtle will soon a family tree of different sized models that specialize in varying tasks. For now, the only version of turtle is known as Forge. Forge focuses solely on coding tasks written in Rust and Odin with plans to implement other langauages soon (a full implementation guide can be found below). There are 2 versions of Forge known as Forge Mistral and Forge Ollama. These versions both function the same but they have different backend support. Forge Ollama is optimized for more accurate and faster responses. 
+
+### What is the difference between Forge Mistral and Forge Ollama?
+
+As mentioned above, turtle will eventually be a family tree of many models. Forge is the programming variant of turtle, Forge has 2 variants to meet the varying demands of users. For those who don't have a lot of RAM or newer hardware you can run the Mistral version of Forge. Forge Ollama uses Ollama backend to provide even faster responses with higher accuracy but it is more demanding with hardware and resources. Both versions of Forge do the same thing, they run AI models locally on your device offline. 
+
+### Family Tree
+
+<img width="644" height="364" alt="Screenshot 2026-07-28 at 3 57 09 PM" src="https://github.com/user-attachments/assets/3ad2e33a-0bfb-467e-9ad5-b14009ed81d1" />
+
+***
 
 The version you're looking for can be downloaded/copied by going to the bottom of that release and downloading the zip from the assets or by simply changing the branch from the main branch to either the Forge Mistral or Forge Ollama branch and copying from your terminal. 
 
