@@ -18,7 +18,15 @@ Yes! and No! You will need an internet connection in order to download your mode
 
 ***
 
-## How to use Ollama:
+## How to use Forge Ollama:
+>[!NOTE]
+>Create a new folder/sub-directory within turtle-ollama named models and save your model .gguf inside of that folder/sub-directory. Unlike Forge Mistral there is no need for chat instructions.
+
+<img width="576" height="225" alt="Screenshot 2026-07-27 at 8 37 00 PM" src="https://github.com/user-attachments/assets/27675eb3-db30-4c06-b33b-15c4b2c2d516" />
+
+
+<img width="325" height="200" alt="Screenshot 2026-07-27 at 8 37 07 PM" src="https://github.com/user-attachments/assets/62b36263-acb7-4781-91ea-13956da6a852" />
+
 
 ### Install Ollama with Brew
 
