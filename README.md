@@ -1,197 +1,70 @@
-## Welcome to turtle 🐢
+# Welcome to Forge Ollama!  🐢⚒️🦙
+>[!IMPORTANT]
+>APPLE SILICON ONLY CURRENTLY
 
-Turtle is an AI assistant program focused on specific tasks that runs locally on your device. Other general flagship models are way faster, yes I know, but with turtle you don't have your information and data being used to train other models. You can use turtle offline with no API keys and you have full control over the agent's harness. Flagship models don't offer this, sometimes being slower is better. The big difference with turtle is that you don't need to give turtle system wide access to read,write, and compile code, this means an AI model can't delete all your files by accident like *cough* other companies *cough*
+Everything you're familiar with in the original Forge version (now known as Forge Mistral) but optimized for Ollama backend support. This release note will provide all the information you need to get turtle up and running to Forge Ollama so be sure to read through everything. Don't feel pressured to switch back over though, I'm providing support for both Forge Ollama and Forge Mistral :) 
 
-> [!WARNING]
-> 16-32 GB OF RAM IS RECOMMENDED TO RUN. LESS THAN 16 GB WILL SEE PERFORMANCE ISSUES.
+## Why an Ollama version? What's the difference between Mistral?
 
-<img width="1400" height="350" alt="Screenshot 2026-07-22 at 6 42 37 PM" src="https://github.com/user-attachments/assets/74edac52-fc71-48b8-b9c6-c96bb795c949" />
+Mistralrs 0.8.1 is great for smaller back end support, if you are going to be running a model for less than 16GB of ram Forge Mistral is plenty for you. Mistralrs only supports dense architecture, it does not support MoE (mix of experts) architecture. The background threads will panic while loading MoE models and poison the engine internal lock. Ollama uses llama.cpp which supports MoE for apple silicon. Ollama has much better optimization for metal support as well, giving you more efficiency with token usage and model response time/accuracy. Memory management is now automatic with template handling built in per model. 
 
-### What is turtle?
+## Is it still offline?
 
-Turtle will eventually be a family tree of different sized models that specialize in varying tasks to meet the demands of user's storage/ram available space. For now, the only version of turtle is known as Forge. Forge focuses solely on coding tasks written in Rust and Odin with plans to implement other langauages soon (a full implementation guide can be found below). 
+Yes! and No! You will need an internet connection in order to download your model locally to your device, after it's downloaded you no longer need internet access. Your model will be stored to ```~/.ollama/models/``` and every time you use turtle this is what's happening under the hood.
 
-Turtle Forge is used with the model called "Qwen2.5-Coder-7B-Instruct-Q5_K_M", a 7 billion parameter model with a context length of 128k that needs at least 16 GB of ram and 5.44 GB of space to run/store the model. You can run the model with less than 32 GB of ram but please remember it will take much longer to run and could possibly overwork your system. Anything below 16 GB of ram is not recommended. This model is outdated and not as fast as other flagship models but still returns a very good result.
-
-> [!IMPORTANT]
-> Focuses on improvements, speed, and accuracy are already underway :)
-
-
-🐢⚒️
-
-| Turtle Version | Language           | Compatibility      |
-| -------------  | ------------------ | ------------------ |
-| Forge          | Rust               | :white_check_mark: |
-|                | Odin               | :exclamation: NEEDS WORK|
-|                | Go                 | :no_entry:         |
-|                | C / C++            | :no_entry:         |
-|                | C#                 | :no_entry:         |
-|                | Java               | :no_entry:         |
-|                | Python             | :no_entry:         |
-|                | Ruby               | :no_entry:         |
-|                | Swift              | :no_entry:         |
+1. Starts a local HTTP server
+2. Turtle sends requests to local host
+3. Model is generated 100% with your hardware and then used for responses
 
 ***
 
-## EXAMPLE RUN:
+## How to use Ollama:
 
-Here is an example of the turtle in use. In this example I tell it to create a calculator written in rust. Turtle returned back the code in a copy/paste ready format however it did make 1 mistake that I had to correct. In "main.rs" there was an error on line 2. I had to change ```use anyhow::Result;``` to ```use anyhow::{Result, anyhow};```. A simple and quick one line fix, the response wasn't perfect but for a local model it performed very well. 
-
-### Starting turtle
-
-<img width="1539" height="276" alt="Screenshot 2026-07-22 at 7 42 04 PM" src="https://github.com/user-attachments/assets/34e088bc-2c74-46d7-bd1f-5f46d677b59c" />
-
-### turtle implementing a plan to "create a simple calculator"
-
-<img width="1513" height="311" alt="Screenshot 2026-07-22 at 7 42 26 PM" src="https://github.com/user-attachments/assets/ecf0f113-f3b8-4d91-86cb-f074ce061a6f" />
-
-### turtle building / testing / debugging
-
-<img width="1309" height="458" alt="Screenshot 2026-07-22 at 7 43 48 PM" src="https://github.com/user-attachments/assets/8ee244ff-382c-4695-9e67-74ea49feaea6" />
-
-> [!IMPORTANT]
-> MISSED 1 BUG!
-> changed ```use anyhow::Result;``` to ```use anyhow::{Result, anyhow};```
-
-
-
-## turtle finished results
-
-### Cargo.toml
-
- <img width="506" height="220" alt="Screenshot 2026-07-22 at 7 42 44 PM" src="https://github.com/user-attachments/assets/7c29f4a6-0762-427b-bbb5-fee5800bf87e" />
-
- ### src/main.rs
-
- <img width="542" height="561" alt="Screenshot 2026-07-22 at 7 43 23 PM" src="https://github.com/user-attachments/assets/0aed20b7-c23b-4049-ba77-81c11c37588b" />
-
-<img width="486" height="443" alt="Screenshot 2026-07-22 at 7 43 35 PM" src="https://github.com/user-attachments/assets/54d0f118-aac4-4d7c-a75b-bcc7c26cc387" />
-
-### Usage / Results
-
-<img width="629" height="134" alt="Screenshot 2026-07-22 at 7 41 13 PM" src="https://github.com/user-attachments/assets/6c2481e7-08cf-4a2d-a7df-7affc28eb88d" />
-
- 
-
-
-
-## Installation / Setup
-
-In order to download and use turtle you must have Homebrew, Rust, Odin, Xcode(MacOS).
-
-### Setup
-
-Make directory with:
+### Install Ollama with Brew
 
 ```
-mkdir turtle
- ``` 
-
-And change directory with:
-
-```
-cd turtle
+brew install ollama
 ```
 
-### Install turtle:
+### Start an ollama server
 
-``` 
-git clone https://github.com/ooofruitsnacks/turtle.git
- ```
-
-### Install The AI Model Onto Your Device
-
-You can use my link I made with the model saved or run the download command below
-
-### 32 GB+ Version
-https://we.tl/t-UqgJd6FanVp2RNFc
-
-### 16-32 GB Version
-https://we.tl/t-582Kq2w2f0uuaPpN
-
-
-### Download Command 
-
-32 GB+ Version
+Keep this terminal tab open as long as you want the model running. Open new terminal tabs with CMD+N and leave running in the background. 
 
 ```
-hf download bartowski/Qwen2.5-Coder-32B-Instruct-GGUF --include "Qwen2.5-Coder-32B-Instruct-Q4_K_M.gguf" --local-dir ./models
+ollama serve
 ```
 
-or 16-32GB Version
-```
-hf download bartowski/Qwen2.5-Coder-7B-Instruct-GGUF --include "Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf" --local-dir ./models
-```
+Confirm the server is operational by checking for ``` listening on 127.0.0.1:11434 ```
 
-After it downloads, drag and drop the file into the models sub-directory of turtle or use ```mv```
+### In a new terminal tab, pull/download your AI Model. 
 
-<img width="400" height="220" alt="Screenshot 2026-07-22 at 6 35 33 PM" src="https://github.com/user-attachments/assets/66755faf-db2a-4027-bd56-22f1e5b7c4f7" />
-
-
-### Enable GPU Acceleration
-
-The current "Cargo.toml" has the GPU feature enabled with 
-
-```[dependencies]
-mistralrs = { version = "0.8", features = ["metal"] }
-```
-Run this command in your terminal to enable this feature so there are no errors.
+I recommend qwen3-coder30b on apple silicon with 32GB of unified memory/ram, currently it has performed well. 
 
 ```
-xcodebuild -downloadComponent MetalToolchain
-```
-
-> [!IMPORTANT]
-> APPLE SILICON ONLY! LINUX/WINDOWS BELOW!
-
-### NVIDIA Linux/Windows GPU Acceleration: 
-
-Go to the "Cargo.toml" file within turtle and find this line of code near the top of the file.
-
-```
-[dependencies]
-mistralrs = { version = "0.8", features = ["metal"] }
-``` 
-
-and change to 
-
-```
-[dependencies]
-mistralrs = { version = "0.8", features = ["cuda"] }
+ollama pull qwen3-coder:30b
 ```
 
 ***
+## How to use turtle with ollama 
 
-## How to use
+>[!NOTE]
+>There are some new strings and flags added in Forge Ollama compared to Forge Mistral. You no longer need the chat flag " --chat-template" or  "--model" flag in your string. You use the Ollama model flag directly. See below for examples and usage details. 
 
-Change to turtle directory and build source. Wait a few minutes:
+### Build release
 
-``` cd turtle && cargo build --release```
-
-Run the source string. 
-
-EXAMPLE STRING:
 ```
-cargo run --release -- \                                                                                                                                             ─╯
-  --model ./models/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf \ 
-  --chat-template ./models/qwen_chat_template.json \
-  --language rust \
-  --project ./out
+cd /turtle
+cargo build --release
 ```
 
-If you wish to use a different programming language, change the "--language" flag in the string. 
+Wait for release to build. 
 
-For example this string below is using rust, if you want to use Odin simply change to ```--language odin \```
+### Run the release
 
-### How to breakdown turtle strings
+```
+cargo run --release -- --model qwen3-coder:30b --language rust --project ./out
+```
 
-```cargo run --release -- \``` tells turtle to run the release version you built earlier
+turtle still operates the same as Forge Mistral, give the model your idea and wait for a response to copy/paste.
 
-```--model ./models/Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf \``` tells turtle what model to use
-
-```--chat-template ./models/qwen_chat_template.json \``` tells turtle what model chat template/harness to use
-
-```--language rust \``` tells turtle what language to write the program in
-
-```--project ./out ``` tells turtle where to target
-
+**Full Changelog**: https://github.com/ooofruitsnacks/turtle/commits/Forge_Ollama
