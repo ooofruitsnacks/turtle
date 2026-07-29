@@ -91,7 +91,7 @@ impl OllamaBackend {
                 "options": {
                     "temperature": 0.1,
                     "num_predict": 2048,
-                    "num_ctx": 8192,
+                    "num_ctx": 32768,
                     "stop": ["\n\nExplanation:", "\n\nNote:"]
                 }
             }))
