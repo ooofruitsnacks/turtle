@@ -13,7 +13,8 @@ pub trait LanguageExpert: Send + Sync {
     fn plan_prompt(&self, task: &str) -> String;
     fn code_prompt(&self, task: &str, step: &str, project_context: &str) -> String;
     fn fix_prompt(&self, state: &AgentState, project_context: &str) -> String;
-    fn error_patterns(&self) -> &[&str] { &["error"] }
+    fn error_patterns(&self) -> &[&str] {
+        &["error"]
+    }
     async fn check_project(&self, project_dir: &Path) -> Result<Vec<String>>;
 }
-

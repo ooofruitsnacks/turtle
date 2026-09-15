@@ -39,7 +39,11 @@ impl VectorStore {
         if chunk.index == 0 {
             self.entries.retain(|e| e.source_id != source_id);
         }
-        self.entries.push(Entry { source_id: source_id.to_string(), chunk, vector });
+        self.entries.push(Entry {
+            source_id: source_id.to_string(),
+            chunk,
+            vector,
+        });
     }
 
     pub fn search(&self, query: &[f32], top_k: usize) -> Vec<ScoredChunk> {
@@ -62,4 +66,3 @@ impl VectorStore {
 fn dot(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
-

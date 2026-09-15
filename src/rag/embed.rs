@@ -38,7 +38,9 @@ impl Embedder {
             }))
             .send()
             .await
-            .context("Failed to reach Ollama backend. Is 'ollama serve & ollama pull *model*' running?")?;
+            .context(
+                "Failed to reach Ollama backend. Is 'ollama serve & ollama pull *model*' running?",
+            )?;
 
         if !resp.status().is_success() {
             let status = resp.status();
@@ -46,8 +48,10 @@ impl Embedder {
             anyhow::bail!("Ollama embed error {}: {}", status, body);
         }
 
-        let parsed: EmbedResponse = resp.json().await.context("Failed to parse embed response")?;
+        let parsed: EmbedResponse = resp
+            .json()
+            .await
+            .context("Failed to parse embed response")?;
         Ok(parsed.embeddings)
     }
 }
-

@@ -29,12 +29,10 @@ fn resolve_safe(base: &Path, path: &str) -> Result<PathBuf> {
                 );
                 break;
             }
-            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
-                match ancestor.parent() {
-                    Some(parent) => ancestor = parent,
-                    None => break,
-                }
-            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => match ancestor.parent() {
+                Some(parent) => ancestor = parent,
+                None => break,
+            },
             Err(e) => return Err(e.into()),
         }
     }
@@ -108,5 +106,3 @@ mod tests {
         assert!(resolve_safe(&base, "").is_err());
     }
 }
-
-

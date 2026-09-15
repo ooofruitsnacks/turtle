@@ -1,8 +1,8 @@
 pub mod mock;
 pub mod ollama;
 
-use async_trait::async_trait;
 use anyhow::Result;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait LlmBackend: Send + Sync {
@@ -14,4 +14,3 @@ pub trait LlmBackend: Send + Sync {
         self.complete(prompt).await
     }
 }
-

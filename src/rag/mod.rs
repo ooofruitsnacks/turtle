@@ -24,10 +24,19 @@ impl RagPipeline {
         }
     }
 
-    pub async fn ingest(&mut self, source_id: &str, text: &str, strategy: Option<ChunkStrategy>) -> Result<usize> {
+    pub async fn ingest(
+        &mut self,
+        source_id: &str,
+        text: &str,
+        strategy: Option<ChunkStrategy>,
+    ) -> Result<usize> {
         let strategy = strategy.unwrap_or_else(|| chunk::auto_strategy(text, source_id));
 
-        let chunks: Vec<Chunk> = if let ChunkStrategy::Semantic { max_chars, similarity_floor } = strategy {
+        let chunks: Vec<Chunk> = if let ChunkStrategy::Semantic {
+            max_chars,
+            similarity_floor,
+        } = strategy
+        {
             let embedder = self.embedder.clone();
             chunk::semantic_chunk_async(text, max_chars, similarity_floor, move |s: String| {
                 let e = embedder.clone();
@@ -64,4 +73,3 @@ impl RagPipeline {
             .join("\n\n")
     }
 }
-

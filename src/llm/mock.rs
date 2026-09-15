@@ -13,4 +13,3 @@ impl LlmBackend for MockLlmBackend {
         ))
     }
 }
-
