@@ -1,10 +1,7 @@
-# Welcome to Forge Ollama!  🐢⚒️🦙
+# Welcome to Turtle!  🐢⚒️
+
 >[!IMPORTANT]
 >APPLE SILICON ONLY CURRENTLY
-
-## Why an Ollama version? What's the difference between Mistral?
-
-Mistralrs 0.8.1 is great for smaller back end support, if you are going to be running a model with less than 16GB of ram Forge Mistral is plenty for you. Mistralrs only supports dense architecture, it does not support MoE (mix of experts) architecture. The background threads will panic while loading MoE models and poison the engine internal lock. Ollama uses llama.cpp which supports MoE for apple silicon. Ollama has much better optimization for metal support as well, giving you more efficiency with token usage and model response time/accuracy. Memory management is now automatic with template handling built in per model. 
 
 ## Is it still offline?
 
@@ -18,13 +15,23 @@ Every time you use turtle this is the process of what's happening under the hood
 
 ***
 
-## How to use Forge Ollama:
+### DEPENDENCIES 
+
+- Homebrew
+- Git
+- Rust
+
+## How to use turtle:
 
 ```
-git clone -b Forge-Ollama https://github.com/ooofruitsnacks/turtle.git
+git clone https://github.com/ooofruitsnacks/turtle.git
 ```
 
-and then run ```cd turtle``` followed by ```cargo build --release``` in your terminal
+and then if not already in the turtle directoy, 
+
+run ```cd turtle``` 
+
+followed by ```cargo build --release``` in your terminal.
 
 
 ### Install Ollama with Brew
