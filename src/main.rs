@@ -1,9 +1,9 @@
 use anyhow::Result;
 use clap::Parser;
+use std::io::{self, Write};
 use turtle::agent::Agent;
 use turtle::config::{Config, Language};
 use turtle::project::Project;
-use std::io::{self, Write};
 mod fan;
 
 #[derive(Parser, Debug)]
@@ -87,4 +87,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-

@@ -42,7 +42,6 @@ impl LanguageExpert for RustExpert {
         &["error"]
     }
 
-
     async fn check_project(&self, project_dir: &Path) -> Result<Vec<String>> {
         let result = tools::run_shell("cargo check --message-format=short", project_dir).await?;
         let mut out = Vec::new();
@@ -55,4 +54,3 @@ impl LanguageExpert for RustExpert {
         Ok(out)
     }
 }
-

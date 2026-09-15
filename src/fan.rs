@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 use libc::c_char;
 use mach2::kern_return::kern_return_t as IOReturn;
 use mach2::kern_return::KERN_SUCCESS;
@@ -81,7 +81,11 @@ union SMCBytes {
     bytes: [u8; SMC_DATA_SIZE],
 }
 impl Default for SMCBytes {
-    fn default() -> Self { SMCBytes { bytes: [0; SMC_DATA_SIZE] } }
+    fn default() -> Self {
+        SMCBytes {
+            bytes: [0; SMC_DATA_SIZE],
+        }
+    }
 }
 
 #[repr(C, packed)]
@@ -117,19 +121,15 @@ fn key_to_str(k: u32) -> String {
     String::from_utf8_lossy(&b).into_owned()
 }
 
-
 const CPU_TEMP_KEY_CANDIDATES: &[&str] = &[
-    "Tp00","Tp01","Tp02","Tp03","Tp04","Tp05","Tp06","Tp07","Tp08","Tp09",
-    "Tp0A","Tp0B","Tp0C","Tp0D","Tp0E","Tp0F","Tp0G","Tp0H","Tp0I","Tp0J",
-    "Tp0K","Tp0L","Tp0M","Tp0N","Tp0O","Tp0P","Tp0Q","Tp0R","Tp0S","Tp0T",
-    "Tp0U","Tp0V","Tp0W","Tp0X","Tp0Y","Tp0Z",
-    "Tp0a","Tp0b","Tp0c","Tp0d","Tp0e","Tp0f","Tp0g","Tp0h","Tp0i","Tp0j",
-    "Tp0k","Tp0l","Tp0m","Tp0n","Tp0o","Tp0p","Tp0q","Tp0r","Tp0s","Tp0t",
-    "Tp10","Tp11","Tp12","Tp13","Tp14","Tp15","Tp16","Tp17","Tp18","Tp19",
-    "Tp1A","Tp1B","Tp1C","Tp1D","Tp1E","Tp1F","Tp1G","Tp1H",
-    "Tp1a","Tp1b","Tp1c","Tp1d","Tp1e","Tp1f","Tp1g","Tp1h",
+    "Tp00", "Tp01", "Tp02", "Tp03", "Tp04", "Tp05", "Tp06", "Tp07", "Tp08", "Tp09", "Tp0A", "Tp0B",
+    "Tp0C", "Tp0D", "Tp0E", "Tp0F", "Tp0G", "Tp0H", "Tp0I", "Tp0J", "Tp0K", "Tp0L", "Tp0M", "Tp0N",
+    "Tp0O", "Tp0P", "Tp0Q", "Tp0R", "Tp0S", "Tp0T", "Tp0U", "Tp0V", "Tp0W", "Tp0X", "Tp0Y", "Tp0Z",
+    "Tp0a", "Tp0b", "Tp0c", "Tp0d", "Tp0e", "Tp0f", "Tp0g", "Tp0h", "Tp0i", "Tp0j", "Tp0k", "Tp0l",
+    "Tp0m", "Tp0n", "Tp0o", "Tp0p", "Tp0q", "Tp0r", "Tp0s", "Tp0t", "Tp10", "Tp11", "Tp12", "Tp13",
+    "Tp14", "Tp15", "Tp16", "Tp17", "Tp18", "Tp19", "Tp1A", "Tp1B", "Tp1C", "Tp1D", "Tp1E", "Tp1F",
+    "Tp1G", "Tp1H", "Tp1a", "Tp1b", "Tp1c", "Tp1d", "Tp1e", "Tp1f", "Tp1g", "Tp1h",
 ];
-
 
 pub struct Smc {
     conn: IOConnect,
@@ -150,7 +150,9 @@ impl Smc {
             let service = IOIteratorNext(iter);
             IOObjectRelease(iter);
             if service == 0 {
-                return Err(anyhow!("AppleSMC service not found (not an Apple Silicon Mac?)"));
+                return Err(anyhow!(
+                    "AppleSMC service not found (not an Apple Silicon Mac?)"
+                ));
             }
             let mut conn: IOConnect = 0;
             let kr = IOServiceOpen(service, mach_task_self(), 0, &mut conn);
@@ -269,7 +271,9 @@ impl Smc {
         for &key in keys {
             if let Ok(t) = self.read_flt(key) {
                 if (10.0..130.0).contains(&t) {
-                    if t > max_t { max_t = t; }
+                    if t > max_t {
+                        max_t = t;
+                    }
                     found = true;
                 }
             }
@@ -294,7 +298,10 @@ impl Smc {
                     for _ in 0..300 {
                         match self.write_ui8(mode_key, 1) {
                             Ok(()) => return Ok(()),
-                            Err(e2) => { last_err = e2; thread::sleep(Duration::from_millis(100)); }
+                            Err(e2) => {
+                                last_err = e2;
+                                thread::sleep(Duration::from_millis(100));
+                            }
                         }
                     }
                     Err(last_err.context("manual mode still rejected after Ftst unlock"))
@@ -316,8 +323,12 @@ impl Smc {
         for i in 0..fan_count {
             self.set_manual_mode(i)
                 .with_context(|| format!("fan {} manual mode", i))?;
-            let min = self.read_flt(key_from_str(&format!("F{}Mn", i))).unwrap_or(1200.0);
-            let max = self.read_flt(key_from_str(&format!("F{}Mx", i))).unwrap_or(6000.0);
+            let min = self
+                .read_flt(key_from_str(&format!("F{}Mn", i)))
+                .unwrap_or(1200.0);
+            let max = self
+                .read_flt(key_from_str(&format!("F{}Mx", i)))
+                .unwrap_or(6000.0);
             let rpm = min + (percent / 100.0) * (max - min);
             self.write_flt(key_from_str(&format!("F{}Tg", i)), rpm)
                 .with_context(|| format!("fan {} target RPM", i))?;
@@ -344,16 +355,26 @@ pub struct FanCurve {
 }
 
 impl FanCurve {
-    pub fn new() -> Self { Self { last_band: 0 } }
+    pub fn new() -> Self {
+        Self { last_band: 0 }
+    }
 
     pub fn target(&mut self, temp_c: f32) -> f32 {
-        let band = if temp_c >= 80.0 { 5 }
-        else if temp_c >= 75.0 { 4 }
-        else if temp_c >= 70.0 { 3 }
-        else if temp_c >= 60.0 { 2 }
-        else if temp_c >= 50.0 { 1 }
-        else if temp_c <= 48.0 { 0 }
-        else { self.last_band };
+        let band = if temp_c >= 80.0 {
+            5
+        } else if temp_c >= 75.0 {
+            4
+        } else if temp_c >= 70.0 {
+            3
+        } else if temp_c >= 60.0 {
+            2
+        } else if temp_c >= 50.0 {
+            1
+        } else if temp_c <= 48.0 {
+            0
+        } else {
+            self.last_band
+        };
 
         self.last_band = band;
         match band {
@@ -422,4 +443,3 @@ pub async fn spawn_fan_loop() -> Result<Smc> {
     });
     Ok(smc)
 }
-

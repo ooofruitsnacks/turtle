@@ -1,8 +1,9 @@
 use super::LlmBackend;
-use anyhow::{Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
+use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
@@ -13,9 +14,12 @@ pub struct ChatMessage {
 }
 
 impl ChatMessage {
-    fn system(s: &str) -> Self { Self { role: "system".into(), content: s.into() } }
-    fn user(s: &str) -> Self { Self { role: "user".into(), content: s.into() } }
-    fn assistant(s: String) -> Self { Self { role: "assistant".into(), content: s } }
+    fn new(role: &str, content: impl Into<String>) -> Self {
+        Self {
+            role: role.to_owned(),
+            content: content.into(),
+        }
+    }
 }
 
 pub struct OllamaBackend {
@@ -23,199 +27,415 @@ pub struct OllamaBackend {
     client: reqwest::Client,
     base_url: String,
     history: Mutex<Vec<ChatMessage>>,
+    request_lock: Mutex<()>,
+    context_tokens: u32,
+    recent_turns: usize,
+    keep_alive: String,
+    preview: bool,
+}
+
+fn env_u32(name: &str, default: u32) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(default)
+}
+
+fn env_bool(name: &str, default: bool) -> bool {
+    match std::env::var(name).ok().as_deref() {
+        Some("1" | "true" | "yes") => true,
+        Some("0" | "false" | "no") => false,
+        _ => default,
+    }
+}
+
+fn estimated_tokens(messages: &[ChatMessage]) -> usize {
+    messages
+        .iter()
+        .map(|m| m.content.len().div_ceil(3) + 32)
+        .sum::<usize>()
+        + 256
+}
+
+fn remove_last_turn(history: &mut Vec<ChatMessage>) {
+    let n = history.len();
+
+    if n >= 3 && history[n - 1].role == "turtle" && history[n - 2].role == "user" {
+        history.truncate(n - 2);
+    }
 }
 
 impl OllamaBackend {
     pub fn new(model_name: &str) -> Self {
+        let host =
+            std::env::var("OLLAMA_HOST").unwrap_or_else(|_| "http://127.0.0.1:11434".to_owned());
+
+        let base_url = if host.starts_with("http://") || host.starts_with("https://") {
+            host
+        } else {
+            format!("http://{host}")
+        };
+
+        let timeout = env_u32("TURTLE_REQUEST_TIMEOUT_SECS", 600).clamp(10, 3600);
+
         Self {
-            model_name: model_name.to_string(),
+            model_name: model_name.to_owned(),
             client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(180))
+                .connect_timeout(Duration::from_secs(10))
+                .timeout(Duration::from_secs(timeout as u64))
                 .build()
-                .expect("failed to build reqwest client"),
-            base_url: "http://localhost:11434".to_string(),
-            history: Mutex::new(Vec::new()),
+                .expect("failed to build Ollama HTTP client"),
+            base_url: base_url.trim_end_matches('/').to_owned(),
+            history: Mutex::new(vec![ChatMessage::new("system", "")]),
+            request_lock: Mutex::new(()),
+            context_tokens: env_u32("TURTLE_NUM_CTX", 8192).clamp(4096, 131072),
+            recent_turns: env_u32("TURTLE_HISTORY_TURNS", 1).min(8) as usize,
+            keep_alive: std::env::var("TURTLE_KEEP_ALIVE").unwrap_or_else(|_| "5m".to_owned()),
+            preview: env_bool("TURTLE_STREAM_PREVIEW", true),
         }
     }
 
     pub async fn check(&self) -> Result<()> {
-        let resp = self
+        let response = self
             .client
             .get(format!("{}/api/tags", self.base_url))
             .send()
             .await
-            .context("Cannot connect to Ollama at http://localhost:11434. Is 'ollama serve' running?")?;
+            .with_context(|| format!("cannot connect to Ollama at {}", self.base_url))?
+            .error_for_status()
+            .context("Ollama /api/tags failed")?;
 
-        let body: serde_json::Value = resp.json().await.context("Failed to parse Ollama tags")?;
-        let models: Vec<String> = body["models"]
+        let body: Value = response.json().await?;
+
+        let default_tag = format!("{}:latest", self.model_name);
+
+        let available = body["models"]
             .as_array()
-            .unwrap_or(&Vec::new())
-            .iter()
-            .filter_map(|m| m["name"].as_str().map(|s| s.to_string()))
-            .collect();
+            .into_iter()
+            .flatten()
+            .filter_map(|m| m["name"].as_str())
+            .any(|name| {
+                name == self.model_name || (!self.model_name.contains(':') && name == default_tag)
+            });
 
-        if !models.iter().any(|m| m.starts_with(&self.model_name)) {
-            anyhow::bail!(
-                "Model '{}' not found in Ollama. Run: ollama pull {}",
-                self.model_name,
-                self.model_name
-            );
-        }
+        ensure!(
+            available,
+            "model {:?} is not installed in this Ollama instance",
+            self.model_name
+        );
 
-        println!("✅ Backend connected. Model '{}' available.", self.model_name);
+        eprintln!(
+            "Ollama connected: model={}, context={}, retained_turns={}",
+            self.model_name, self.context_tokens, self.recent_turns
+        );
+
         Ok(())
     }
 
-    async fn chat_turn(&self, user_content: &str) -> Result<String> {
-        let messages: Vec<ChatMessage> = {
-            let mut hist = self.history.lock().await;
-            hist.push(ChatMessage::user(user_content));
-            hist.clone()
+    async fn chat_turn(&self, prompt: &str, requested_output: u32) -> Result<String> {
+        let _request_guard = self.request_lock.lock().await;
+
+        ensure!(requested_output > 0, "output budget must be positive");
+
+        let output_tokens = requested_output.min(self.context_tokens / 2);
+
+        let history = self.history.lock().await.clone();
+
+        let mut messages = vec![history
+            .first()
+            .cloned()
+            .unwrap_or_else(|| ChatMessage::new("system", ""))];
+
+        let prior_messages = self.recent_turns.saturating_mul(2);
+        let start = history.len().saturating_sub(prior_messages).max(1);
+
+        if start < history.len() {
+            messages.extend_from_slice(&history[start..]);
+        }
+
+        messages.push(ChatMessage::new("user", prompt));
+
+        while estimated_tokens(&messages) + output_tokens as usize > self.context_tokens as usize
+            && messages.len() > 2
+        {
+            messages.drain(1..3);
+        }
+
+        let estimate = estimated_tokens(&messages);
+
+        ensure!(
+            estimate + output_tokens as usize <= self.context_tokens as usize,
+            "request exceeds approximate context budget: \
+             input≈{}, output={}, context={}. \
+             Reduce task/context size or increase TURTLE_NUM_CTX",
+            estimate,
+            output_tokens,
+            self.context_tokens
+        );
+
+        let mut request = json!({
+            "model": self.model_name,
+            "messages": messages,
+            "stream": true,
+            "keep_alive": self.keep_alive,
+            "options": {
+                "num_ctx": self.context_tokens,
+                "num_predict": output_tokens,
+                "temperature": 0.1
+            }
+        });
+
+        if let Ok(value) = std::env::var("TURTLE_THINK") {
+            request["think"] = match value.as_str() {
+                "true" => json!(true),
+                "false" => json!(false),
+                "low" | "medium" | "high" | "max" => json!(value),
+                _ => bail!("invalid TURTLE_THINK value"),
+            };
+        }
+
+        let started = Instant::now();
+        let mut first_content_ms = None;
+
+        eprintln!(
+            "Generating: input≈{} tokens, output_limit={}",
+            estimate, output_tokens
+        );
+
+        let mut response = self
+            .client
+            .post(format!("{}/api/chat", self.base_url))
+            .json(&request)
+            .send()
+            .await
+            .context("Ollama chat request failed")?
+            .error_for_status()
+            .context("Ollama chat returned an HTTP error")?;
+
+        let mut pending = Vec::<u8>::new();
+        let mut content = String::new();
+        let mut final_frame: Option<Value> = None;
+
+        while let Some(chunk) = response.chunk().await? {
+            pending.extend_from_slice(&chunk);
+
+            ensure!(
+                pending.len() <= 4 * 1024 * 1024,
+                "Ollama stream frame exceeded safety limit"
+            );
+
+            let mut consumed = 0;
+
+            while let Some(relative_end) =
+                pending[consumed..].iter().position(|&byte| byte == b'\n')
+            {
+                let end = consumed + relative_end;
+
+                Self::consume_frame(
+                    &pending[consumed..end],
+                    &mut content,
+                    &mut final_frame,
+                    &mut first_content_ms,
+                    started,
+                    self.preview,
+                )?;
+
+                consumed = end + 1;
+            }
+
+            if consumed > 0 {
+                pending.drain(..consumed);
+            }
+
+            if final_frame.is_some() {
+                break;
+            }
+        }
+
+        if final_frame.is_none() && !pending.is_empty() {
+            Self::consume_frame(
+                &pending,
+                &mut content,
+                &mut final_frame,
+                &mut first_content_ms,
+                started,
+                self.preview,
+            )?;
+        }
+
+        if self.preview {
+            eprintln!();
+        }
+
+        let metrics = final_frame.context("Ollama stream ended without a completion frame")?;
+
+        ensure!(
+            metrics["done_reason"].as_str() != Some("length"),
+            "generation reached its output limit; nothing was committed \
+             to conversation history. Split the task into smaller changes"
+        );
+
+        ensure!(
+            !content.trim().is_empty(),
+            "Ollama returned no usable response content"
+        );
+
+        let eval_count = metrics["eval_count"].as_u64().unwrap_or(0);
+        let eval_ns = metrics["eval_duration"].as_u64().unwrap_or(0);
+
+        let tokens_per_second = if eval_ns > 0 {
+            eval_count as f64 * 1_000_000_000.0 / eval_ns as f64
+        } else {
+            0.0
         };
 
         eprintln!(
-            "🐢⚒️🦙Thinking…🧠💭 ({} messages, {} chars in latest turn)…",
-            messages.len(),
-            user_content.len()
-        );
-        let start = Instant::now();
-
-        let resp = self
-            .client
-            .post(format!("{}/api/chat", self.base_url))
-            .json(&json!({
+            "{}",
+            json!({
+                "event": "turtle_inference",
                 "model": self.model_name,
-                "messages": messages,
-                "stream": false,
-                "keep_alive": "30m",
-                "options": {
-                    "temperature": 0.1,
-                    "num_predict": 2048,
-                    "num_ctx": 32768,
-                    "stop": ["\n\nExplanation:", "\n\nNote:"]
-                }
-            }))
-            .send()
-            .await
-            .context("Failed to send request to Ollama");
+                "wall_ms": started.elapsed().as_millis(),
+                "first_content_ms": first_content_ms,
+                "prompt_tokens": metrics["prompt_eval_count"],
+                "cached_prompt_tokens": metrics["prompt_eval_cached_count"],
+                "generated_tokens": metrics["eval_count"],
+                "load_ns": metrics["load_duration"],
+                "prompt_eval_ns": metrics["prompt_eval_duration"],
+                "eval_ns": metrics["eval_duration"],
+                "generation_tokens_per_second": tokens_per_second
+            })
+        );
 
-        let resp = match resp {
-            Ok(r) => r,
-            Err(e) => {
-                self.history.lock().await.pop();
-                return Err(e);
-            }
-        };
+        messages.push(ChatMessage::new("turtle", content.clone()));
+        *self.history.lock().await = messages;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            self.history.lock().await.pop();
-            anyhow::bail!("Ollama returned HTTP {}: {}", status, text);
-        }
-
-        let body: serde_json::Value = resp
-            .json()
-            .await
-            .context("Failed to parse Ollama response")?;
-
-        let content = body["message"]["content"].as_str().unwrap_or("").to_string();
-        if body["done_reason"].as_str() == Some("length") {
-            eprintln!("⚠️ generation stopped at num_predict limit — output may be truncated");
-        }
-
-
-        if let Some(pe) = body["prompt_eval_count"].as_u64() {
-            let ee = body["eval_count"].as_u64().unwrap_or(0);
-            eprintln!("✅ {} prompt tok / {} gen tok in {:?}", pe, ee, start.elapsed());
-        } else {
-            eprintln!("✅ Response received in {:?} ({} chars)", start.elapsed(), content.len());
-        }
-
-        self.history.lock().await.push(ChatMessage::assistant(content.clone()));
         Ok(content)
+    }
+
+    fn consume_frame(
+        bytes: &[u8],
+        content: &mut String,
+        final_frame: &mut Option<Value>,
+        first_content_ms: &mut Option<u128>,
+        started: Instant,
+        preview: bool,
+    ) -> Result<()> {
+        if bytes.iter().all(u8::is_ascii_whitespace) {
+            return Ok(());
+        }
+
+        ensure!(final_frame.is_none(), "data received after completion");
+
+        let frame: Value =
+            serde_json::from_slice(bytes).context("invalid JSON in Ollama stream")?;
+
+        if let Some(error) = frame["error"].as_str() {
+            bail!("Ollama error: {error}");
+        }
+
+        if let Some(text) = frame["message"]["content"].as_str() {
+            if !text.is_empty() && first_content_ms.is_none() {
+                *first_content_ms = Some(started.elapsed().as_millis());
+            }
+
+            ensure!(
+                content.len().saturating_add(text.len()) <= 2 * 1024 * 1024,
+                "generated content exceeded safety limit"
+            );
+
+            content.push_str(text);
+
+            if preview {
+                let safe: String = text
+                    .chars()
+                    .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+                    .collect();
+
+                eprint!("{safe}");
+                let _ = io::stderr().flush();
+            }
+        }
+
+        if frame["done"].as_bool() == Some(true) {
+            *final_frame = Some(frame);
+        }
+
+        Ok(())
     }
 }
 
 #[async_trait]
 impl LlmBackend for OllamaBackend {
     async fn complete(&self, prompt: &str) -> Result<String> {
-        self.chat_turn(prompt).await
-    }
-
-    async fn set_system(&self, system_prompt: &str) {
-        let mut hist = self.history.lock().await;
-        hist.clear();
-        hist.push(ChatMessage::system(system_prompt));
-    }
-
-    async fn reset_context(&self) {
-        let mut hist = self.history.lock().await;
-        hist.retain(|m| m.role == "system");
-    }
-        async fn pop_last(&self) {
-        self.history.lock().await.pop();
+        self.chat_turn(prompt, 2048).await
     }
 
     async fn complete_with_budget(&self, prompt: &str, max_tokens: u32) -> Result<String> {
-        self.history.lock().await.push(ChatMessage {
-            role: "user".to_string(),
-            content: prompt.to_string(),
-        });
+        self.chat_turn(prompt, max_tokens).await
+    }
 
-        let messages = self.history.lock().await.clone();
+    async fn set_system(&self, system_prompt: &str) {
+        let _guard = self.request_lock.lock().await;
+        *self.history.lock().await = vec![ChatMessage::new("system", system_prompt)];
+    }
 
-        eprintln!(
-            "🐢⚒️🦙Thinking…🧠💭 ({} messages, {} chars in latest turn, max {} tokens)…",
-            messages.len(),
-            prompt.len(),
-            max_tokens
-        );
+    async fn reset_context(&self) {
+        let _guard = self.request_lock.lock().await;
+        let mut history = self.history.lock().await;
+        history.truncate(1);
+    }
 
-        let request = json!({
-            "model": self.model_name,
-            "messages": messages,
-            "stream": false,
-            "options": {
-                "num_ctx": 4096,
-                "temperature": 0.3,
-                "num_predict": max_tokens,
-            }
-        });
+    async fn pop_last(&self) {
+        let _guard = self.request_lock.lock().await;
+        let mut history = self.history.lock().await;
 
-        let response = self
-            .client
-            .post(format!("{}/api/chat", self.base_url))
-            .json(&request)
-            .send()
-            .await
-            .context("failed to call Ollama /api/chat")?;
-
-        let body: serde_json::Value =
-            response.json().await.context("invalid JSON from Ollama")?;
-
-        if let Some(err) = body.get("error").and_then(|e| e.as_str()) {
-            anyhow::bail!("Ollama error: {}", err);
-        }
-
-        let content = body["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        if body["done_reason"].as_str() == Some("length") {
-            eprintln!(
-                "WARNING: generation hit num_predict={} limit; output may be truncated",
-                max_tokens
-            );
-        }
-
-        self.history.lock().await.push(ChatMessage {
-            role: "assistant".to_string(),
-            content: content.clone(),
-        });
-
-        Ok(content)
+        remove_last_turn(&mut *history);
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rollback_removes_both_messages() {
+        let mut history = vec![
+            ChatMessage::new("system", "rules"),
+            ChatMessage::new("user", "request"),
+            ChatMessage::new("turtle", "rejected"),
+        ];
+
+        remove_last_turn(&mut history);
+
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].role, "system");
+    }
+
+    #[test]
+    fn rollback_preserves_previous_turn() {
+        let mut history = vec![
+            ChatMessage::new("system", "rules"),
+            ChatMessage::new("user", "first"),
+            ChatMessage::new("turtle", "accepted"),
+            ChatMessage::new("user", "second"),
+            ChatMessage::new("turtle", "rejected"),
+        ];
+
+        remove_last_turn(&mut history);
+
+        assert_eq!(history.len(), 3);
+        assert_eq!(history[2].content, "accepted");
+    }
+
+    #[test]
+    fn incomplete_turn_is_not_removed() {
+        let mut history = vec![
+            ChatMessage::new("system", "rules"),
+            ChatMessage::new("user", "request"),
+        ];
+
+        remove_last_turn(&mut history);
+
+        assert_eq!(history.len(), 2);
+    }
+}

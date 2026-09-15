@@ -42,7 +42,6 @@ impl LanguageExpert for OdinExpert {
         &[") Error:", "Error:"]
     }
 
-
     async fn check_project(&self, project_dir: &Path) -> Result<Vec<String>> {
         let result = tools::run_shell("odin check .", project_dir).await?;
         let mut out = Vec::new();
@@ -55,4 +54,3 @@ impl LanguageExpert for OdinExpert {
         Ok(out)
     }
 }
-

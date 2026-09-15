@@ -9,10 +9,20 @@ pub struct Chunk {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ChunkStrategy {
-    Token { max_tokens: usize, overlap: usize },
-    Sentence { max_chars: usize },
-    Recursive { max_chars: usize },
-    Semantic { max_chars: usize, similarity_floor: f32 },
+    Token {
+        max_tokens: usize,
+        overlap: usize,
+    },
+    Sentence {
+        max_chars: usize,
+    },
+    Recursive {
+        max_chars: usize,
+    },
+    Semantic {
+        max_chars: usize,
+        similarity_floor: f32,
+    },
 }
 
 pub fn auto_strategy(text: &str, path_hint: &str) -> ChunkStrategy {
@@ -31,10 +41,16 @@ pub fn auto_strategy(text: &str, path_hint: &str) -> ChunkStrategy {
 
 pub fn split(text: &str, strategy: ChunkStrategy) -> Vec<Chunk> {
     match strategy {
-        ChunkStrategy::Token { max_tokens, overlap } => token_chunk(text, max_tokens, overlap),
+        ChunkStrategy::Token {
+            max_tokens,
+            overlap,
+        } => token_chunk(text, max_tokens, overlap),
         ChunkStrategy::Sentence { max_chars } => sentence_chunk(text, max_chars),
         ChunkStrategy::Recursive { max_chars } => recursive_chunk(text, max_chars),
-        ChunkStrategy::Semantic { max_chars, similarity_floor } => {
+        ChunkStrategy::Semantic {
+            max_chars,
+            similarity_floor,
+        } => {
             let _ = similarity_floor;
             sentence_chunk(text, max_chars)
         }
@@ -96,7 +112,11 @@ fn pack_units(units: &[String], max_chars: usize, strategy_name: &str) -> Vec<Ch
 
     for unit in units {
         if !current.is_empty() && current.len() + 1 + unit.len() > max_chars {
-            chunks.push(Chunk { text: current.trim().to_string(), index: idx, strategy: strategy_name.to_string() });
+            chunks.push(Chunk {
+                text: current.trim().to_string(),
+                index: idx,
+                strategy: strategy_name.to_string(),
+            });
             idx += 1;
             current = String::new();
         }
@@ -106,7 +126,11 @@ fn pack_units(units: &[String], max_chars: usize, strategy_name: &str) -> Vec<Ch
         current.push_str(unit);
     }
     if !current.trim().is_empty() {
-        chunks.push(Chunk { text: current.trim().to_string(), index: idx, strategy: strategy_name.to_string() });
+        chunks.push(Chunk {
+            text: current.trim().to_string(),
+            index: idx,
+            strategy: strategy_name.to_string(),
+        });
     }
     chunks
 }
@@ -149,7 +173,11 @@ pub async fn semantic_chunk_async(
     text: &str,
     max_chars: usize,
     similarity_floor: f32,
-    embed_fn: impl Fn(String) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<Vec<f32>>> + Send>>,
+    embed_fn: impl Fn(
+        String,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = anyhow::Result<Vec<f32>>> + Send>,
+    >,
 ) -> anyhow::Result<Vec<Chunk>> {
     let sentences = split_sentences(text);
     if sentences.is_empty() {
@@ -172,7 +200,11 @@ pub async fn semantic_chunk_async(
         let would_exceed = current_text.len() + sentences[i].len() + 1 > max_chars;
 
         if sim < similarity_floor || would_exceed {
-            chunks.push(Chunk { text: current_text.trim().to_string(), index: idx, strategy: "semantic".to_string() });
+            chunks.push(Chunk {
+                text: current_text.trim().to_string(),
+                index: idx,
+                strategy: "semantic".to_string(),
+            });
             idx += 1;
             current_text = sentences[i].clone();
             current_centroid = vectors[i].clone();
@@ -188,7 +220,11 @@ pub async fn semantic_chunk_async(
         }
     }
     if !current_text.trim().is_empty() {
-        chunks.push(Chunk { text: current_text.trim().to_string(), index: idx, strategy: "semantic".to_string() });
+        chunks.push(Chunk {
+            text: current_text.trim().to_string(),
+            index: idx,
+            strategy: "semantic".to_string(),
+        });
     }
     Ok(chunks)
 }
@@ -197,6 +233,9 @@ fn cosine(a: &[f32], b: &[f32]) -> f32 {
     let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
     let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if na == 0.0 || nb == 0.0 { 0.0 } else { dot / (na * nb) }
+    if na == 0.0 || nb == 0.0 {
+        0.0
+    } else {
+        dot / (na * nb)
+    }
 }
-
