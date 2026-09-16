@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "name": "Configure CMake",
+      "program": "cmake",
+      "args": ["-S", ".", "-B", "build"],
+      "timeout_secs": 180
+    },
+    {
+      "name": "Build C++ project",
+      "program": "cmake",
+      "args": ["--build", "build"],
+      "timeout_secs": 600
+    },
+    {
+      "name": "Run registered tests",
+      "program": "ctest",
+      "args": [
+        "--test-dir",
+        "build",
+        "--output-on-failure",
+        "--no-tests=error"
+      ],
+      "timeout_secs": 180
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "name": "TypeScript type checking",
+      "program": "bun",
+      "args": ["run", "typecheck"],
+      "timeout_secs": 180
+    },
+    {
+      "name": "Project lint and document validation",
+      "program": "bun",
+      "args": ["run", "lint"],
+      "timeout_secs": 180
+    },
+    {
+      "name": "Project tests",
+      "program": "bun",
+      "args": ["run", "test"],
+      "timeout_secs": 180
+    }
+  ]
+}
+

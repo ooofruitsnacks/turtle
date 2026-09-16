@@ -1,0 +1,11 @@
+{
+  "checks": [
+    {
+      "name": "Python tests",
+      "program": "python3",
+      "args": ["-m", "pytest", "-q"],
+      "timeout_secs": 180
+    }
+  ]
+}
+
