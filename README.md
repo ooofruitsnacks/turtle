@@ -34,7 +34,7 @@ run ```cd turtle```
 followed by:
 
 ```
-cargo fmt --all && \                                                      ─╯
+cargo fmt --all && \
 cargo check --all-targets && \
 cargo test --all-targets && \
 cargo build --release
