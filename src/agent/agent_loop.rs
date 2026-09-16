@@ -435,7 +435,7 @@ impl<'a> Agent<'a> {
     }
 
     async fn complete_action(&self, prompt: &str) -> Result<Action> {
-        let tokens = limit("TURTLE_OUTPUT_TOKENS", 4096, 512, 16384) as u32;
+        let tokens = limit("TURTLE_OUTPUT_TOKENS", 4096, 512, 65536) as u32;
 
         let mut request = prompt.to_owned();
 
