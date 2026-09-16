@@ -65,10 +65,9 @@ ollama pull qwen3-coder:30b
 ```
 
 ***
-## How to use turtle with ollama 
+## How to use turtle
 
->[!NOTE]
->There are some new strings and flags added in Forge Ollama compared to Forge Mistral. You no longer need the chat flag " --chat-template" or  "--model" flag in your string. You use the Ollama model flag directly. See below for examples and usage details. 
+WORK IN PROGRESS
 
 ### Build release
 
@@ -79,16 +78,13 @@ cargo build --release
 
 Wait for release to build. 
 
-### Run the release
+### Python
 
 ```
-cargo run --release -- --model qwen3-coder:30b --language rust --project ./out
+./target/release/turtle \
+  --model qwen3-coder:30b \
+  --context 16384 \
+  --language python \
+  --project ./python-project
 ```
-
-turtle still operates the same as Forge Mistral, give the model your idea and wait for a response to copy/paste.
-
-### Example download and run
-
-https://youtu.be/GWjyLu_NDO4
-
-**Full Changelog**: https://github.com/ooofruitsnacks/turtle/commits/Forge_Ollama
+  
