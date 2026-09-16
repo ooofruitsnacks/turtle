@@ -1,0 +1,8 @@
+.DS_Store
+target/
+.env
+.env.*
+*.pem
+*.key
+credentials*
+secrets*
