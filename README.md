@@ -31,8 +31,14 @@ and then if not already in the turtle directoy,
 
 run ```cd turtle``` 
 
-followed by ```cargo build --release``` in your terminal.
+followed by:
 
+```
+cargo fmt --all && \                                                      ─╯
+cargo check --all-targets && \
+cargo test --all-targets && \
+cargo build --release
+```
 
 ### Install Ollama with Brew
 
