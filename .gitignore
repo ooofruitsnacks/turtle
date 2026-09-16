@@ -6,3 +6,5 @@ target/
 *.key
 credentials*
 secrets*
+
+.DS_Store
