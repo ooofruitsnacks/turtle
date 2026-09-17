@@ -105,33 +105,43 @@ jobs:
         if: matrix.os == 'windows'
         run: .\target\${{ matrix.target }}\release\turtle.exe --help
 
-      - name: Package release (Unix)
-        if: matrix.os != 'windows'
+      - name: Package Linux release
+        if: matrix.os == 'linux'
+        shell: bash
         run: |
+          set -euo pipefail
+
           python3 .github/scripts/package-release.py \
             --target "${{ matrix.target }}" \
             --name "${{ matrix.name }}" \
             --binary "target/${{ matrix.target }}/release/turtle" \
-            --archive-ext "${{ matrix.archive_ext }}"
+            --archive-ext "tar.gz"
 
-      - name: Package windows release
-        if: matrix.os == 'windows'
-        run: |
-          python .github/scripts/package-release.py `
-            --target "${{ matrix.target }}" `
-            --name "${{ matrix.name }}" `
-            --binary "target/${{ matrix.target }}/release/turtle.exe" `
-            --archive-ext "${{ matrix.archive_ext }}"
-
-      - name: Package Intel macOS release
+      - name: Package both macOS releases
         if: matrix.os == 'macos'
+        shell: bash
         run: |
+          set -euo pipefail
+
+          python3 .github/scripts/package-release.py \
+            --target "aarch64-apple-darwin" \
+            --name "macos-apple-silicon" \
+            --binary "target/aarch64-apple-darwin/release/turtle" \
+            --archive-ext "tar.gz"
+
           python3 .github/scripts/package-release.py \
             --target "x86_64-apple-darwin" \
             --name "macos-intel" \
             --binary "target/x86_64-apple-darwin/release/turtle" \
             --archive-ext "tar.gz"
 
+          (
+            cd dist
+            test -s turtle-macos-apple-silicon.tar.gz
+            test -s turtle-macos-intel.tar.gz
+            shasum -a 256 -c turtle-macos-apple-silicon.tar.gz.sha256
+            shasum -a 256 -c turtle-macos-intel.tar.gz.sha256
+          )
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -164,6 +174,12 @@ jobs:
           pattern: turtle-*
           path: release-assets
           merge-multiple: true
+
+      - name: List downloaded release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find release-assets -type f -print | sort
 
       - name: Verify release archives and checksums
         shell: bash
