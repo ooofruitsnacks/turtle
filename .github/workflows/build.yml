@@ -45,7 +45,7 @@ jobs:
         if: matrix.container == 'debian:12'
         run: |
           apt-get update
-          apt-get install -y curl build-essential pkg-config libssl-dev git ca-certificates
+          apt-get install -y curl build-essential pkg-config libssl-dev git ca-certificates python3
 
       - name: Checkout repository
         uses: actions/checkout@v4
