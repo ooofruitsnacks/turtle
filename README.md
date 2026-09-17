@@ -1,17 +1,32 @@
-# Welcome to Turtle!  🐢⚒️
+<div align="center">
+  
+# Welcome to Turtle! :turtle:
+
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-purple.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Silicon-blue)](#-download)
+![GitHub Repo stars](https://img.shields.io/github/stars/oooFruitSnacks/turtle)
+
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/oooFruitSnacks/turtle/total)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/oooFruitSnacks/turtle)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/w/oooFruitSnacks/turtle)
+
+__SUPPORTED LANGUAGES__
+
+![Badge](https://img.shields.io/badge/%20Rust%20-olive) ![Badge](https://img.shields.io/badge/%20C%20-olive) ![Badge](https://img.shields.io/badge/%20C++%20-olive) ![Badge](https://img.shields.io/badge/%20Jai%20-olive) ![Badge](https://img.shields.io/badge/%20Odin%20-olive) ![Badge](https://img.shields.io/badge/%20Python%20-olive) ![Badge](https://img.shields.io/badge/%20Javascript%20%7C%20Typescript%20-olive) ![Badge](https://img.shields.io/badge/%20Go%20-olive) ![Badge](https://img.shields.io/badge/%20Ruby%20-olive) ![Badge](https://img.shields.io/badge/%20Zig%20-olive) ![Badge](https://img.shields.io/badge/%20Swift%20-olive) ![Badge](https://img.shields.io/badge/%20HTML%20%7C%20Markdown%20-olive) 
+
+</div>
 
 >[!IMPORTANT]
->APPLE SILICON ONLY CURRENTLY
+>APPLE SILICON SUPPORTED CURRENTLY-IM SORRY IM WORKING ON SUPPORTING LINUX AND WINDOWS SHORTLY
 
-## Is it still offline?
 
-Yes! and No! You will need an internet connection initially to download your model locally to your device, after it's downloaded you no longer need internet access. Your model will be stored to ```~/.ollama/models/```.
-
-Every time you use turtle this is the process of what's happening under the hood.
+__How does turtle work?__ :turtle:
 
 1. Starts a local HTTP server
 2. Turtle sends requests to local host
 3. Model is generated 100% with your hardware and used for your prompt
+
+Turtle works by using llama.cpp backend support to pull models from Ollama locally and then making calls to that model pulled from Ollama.
 
 ***
 
@@ -20,8 +35,45 @@ Every time you use turtle this is the process of what's happening under the hood
 - Homebrew
 - Git
 - Rust
+- Ollama
 
-## How to use turtle:
+__DEPS. INSTALL__
+
+On your machine of choice, open a terminal and download Homebrew and wait for it to finish. This command can be ran on macOS, Linux or windows.
+
+If you run into any issues please use Homebrew's guide to follow their directions. (https://brew.sh)
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+After it has finished downloading onto your machine run this command to upgrade outdated packages, update Homebrew, and remove any unneeded disk space from your machine:
+
+```
+brew upgrade
+brew update
+brew cleanup
+```
+now run:
+
+```
+brew install git
+```
+
+After git has been downloaded, install rust with this command in your terminal:
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+or by visiting their website, (https://rust-lang.org/tools/install/)
+
+Now simply run:
+
+```
+brew install ollama
+```
+
+## How to install turtle:
 
 ```
 git clone https://github.com/ooofruitsnacks/turtle.git
@@ -31,7 +83,7 @@ and then if not already in the turtle directoy,
 
 run ```cd turtle``` 
 
-followed by:
+To build a release of turtle, run this command:
 
 ```
 cargo fmt --all && \
@@ -40,15 +92,11 @@ cargo test --all-targets && \
 cargo build --release
 ```
 
-### Install Ollama with Brew
-
-```
-brew install ollama
-```
+Now you can use turtle, to do so, start an ```Ollama``` server and pull the ```qwen3-coder:30b``` model.
 
 ### Start an ollama server
 
-Keep this terminal tab open as long as you want the model running. Open new terminal tabs with CMD+N and leave running in the background. 
+Keep this terminal tab open as long as you want the model running. Open new terminal tabs with CMD+N and leave them running in the background. Keep in mind your model will consume ram even while at idle so close out of the model to do other work. 
 
 ```
 ollama serve
@@ -71,9 +119,8 @@ ollama pull qwen3-coder:30b
 ```
 
 ***
-## How to use turtle
 
-WORK IN PROGRESS
+## How to use turtle
 
 ### Build release
 
@@ -82,15 +129,62 @@ cd /turtle
 cargo build --release
 ```
 
-Wait for release to build. 
+## Using The New Commands
+
+These are some examples if you get confused of how to instruct the model to use a certain language
 
 ### Python
+
+__Executes and debugs code:__
 
 ```
 ./target/release/turtle \
   --model qwen3-coder:30b \
-  --context 16384 \
+  --context 65536 \
   --language python \
-  --project ./python-project
+  --project ./python-project // < CHANGE "./python-project" to whatever you want the output directory name to be
+  --checks ./python-checks.json
+  --allow-checks //
 ```
-  
+
+__Without executing project code:__
+
+```
+./target/release/turtle \
+  --model qwen3-coder:30b \
+  --language python \
+  --project ./python-project \
+  --task "Create a small Python command-line calculator with focused tests."
+```
+### C / C ++
+
+```
+./target/release/turtle \
+  --model qwen3-coder:30b \
+  --language c,cpp \
+  --project ./native-project \
+  --context 65536 \
+  --checks ./cpp-checks.json \
+  --allow-checks
+```
+
+__TypeScript with Bun, HTML, and Markdown__
+
+```
+./target/release/turtle \
+  --model qwen3-coder:30b \
+  --language typescript,html,markdown \
+  --runtime bun \
+  --project ./web-project \
+  --task "Implement the requested web application changes."
+```
+
+### __Jai__
+
+```
+./target/release/turtle \
+  --model qwen3-coder:30b \
+  --language jai \
+  --project ./jai-project
+```
+
