@@ -2,20 +2,23 @@ name: Turtle
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    branches: ["main"]
+    tags: ["v*"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch: {}
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
 
 jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.container || '' }}
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -25,44 +28,35 @@ jobs:
             target: aarch64-unknown-linux-gnu
             os: linux
             archive_ext: tar.gz
-          - name: debian-12-aarch64
-            runner: ubuntu-24.04-arm
-            container: debian:12
-            target: aarch64-unknown-linux-gnu
-            os: linux
-            archive_ext: tar.gz
-          - name: macos
+            exe: ""
+            python: python3
+          - name: macos-apple-silicon
             runner: macos-15
             target: aarch64-apple-darwin
             os: macos
             archive_ext: tar.gz
+            exe: ""
+            python: python3
           - name: windows-x86_64
             runner: windows-2022
             target: x86_64-pc-windows-msvc
             os: windows
             archive_ext: zip
+            exe: ".exe"
+            python: python
 
     steps:
-      - name: Install base tools (Debian container only)
-        if: matrix.container == 'debian:12'
-        run: |
-          apt-get update
-          apt-get install -y curl build-essential pkg-config libssl-dev git ca-certificates python3
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (non-Debian-container jobs)
-        if: matrix.container == ''
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install Rust toolchain (Debian container job)
-        if: matrix.container == 'debian:12'
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --target ${{ matrix.target }}
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Add Intel macOS target
+        if: matrix.os == 'macos'
+        run: rustup target add x86_64-apple-darwin
 
       - name: Cache cargo registry and build artifacts
         uses: actions/cache@v4
@@ -75,18 +69,11 @@ jobs:
           restore-keys: |
             ${{ matrix.name }}-cargo-
 
-      - name: Add both macOS targets
-        if: matrix.os == 'macos'
+      - name: Show toolchain versions
         run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
-
-      - name: Check Intel macOS target (cross-compiled)
-        if: matrix.os == 'macos'
-        run: cargo check --locked --all-targets --target x86_64-apple-darwin
-
-      - name: Build Intel binary (cross-compiled)
-        if: matrix.os == 'macos'
-        run: cargo build --locked --release --target x86_64-apple-darwin
+          rustc --version
+          cargo --version
+          ${{ matrix.python }} --version
 
       - name: cargo check
         run: cargo check --locked --all-targets --target ${{ matrix.target }}
@@ -97,65 +84,129 @@ jobs:
       - name: cargo build --release
         run: cargo build --locked --release --target ${{ matrix.target }}
 
-      - name: Smoke test executable (native runners only)
-        if: matrix.os != 'windows' && matrix.container == ''
-        run: ./target/${{ matrix.target }}/release/turtle --help
+      - name: Check and build Intel macOS binary (cross-compiled)
+        if: matrix.os == 'macos'
+        run: |
+          cargo check --locked --all-targets --target x86_64-apple-darwin
+          cargo build --locked --release --target x86_64-apple-darwin
 
-      - name: Smoke test executable (Windows)
-        if: matrix.os == 'windows'
-        run: .\target\${{ matrix.target }}\release\turtle.exe --help
+      - name: Smoke test executable
+        run: ./target/${{ matrix.target }}/release/turtle${{ matrix.exe }} --help
 
-      - name: Package Linux release
-        if: matrix.os == 'linux'
-        shell: bash
+      - name: Package release
         run: |
           set -euo pipefail
-
-          python3 .github/scripts/package-release.py \
+          ${{ matrix.python }} .github/scripts/package-release.py \
             --target "${{ matrix.target }}" \
             --name "${{ matrix.name }}" \
-            --binary "target/${{ matrix.target }}/release/turtle" \
-            --archive-ext "tar.gz"
+            --binary "target/${{ matrix.target }}/release/turtle${{ matrix.exe }}" \
+            --archive-ext "${{ matrix.archive_ext }}"
+          test -s "dist/turtle-${{ matrix.name }}.${{ matrix.archive_ext }}"
+          test -s "dist/turtle-${{ matrix.name }}.${{ matrix.archive_ext }}.sha256"
 
-      - name: Package both macOS releases
+      - name: Package Intel macOS release
         if: matrix.os == 'macos'
-        shell: bash
         run: |
           set -euo pipefail
-
-          python3 .github/scripts/package-release.py \
-            --target "aarch64-apple-darwin" \
-            --name "macos-apple-silicon" \
-            --binary "target/aarch64-apple-darwin/release/turtle" \
-            --archive-ext "tar.gz"
-
           python3 .github/scripts/package-release.py \
             --target "x86_64-apple-darwin" \
             --name "macos-intel" \
             --binary "target/x86_64-apple-darwin/release/turtle" \
             --archive-ext "tar.gz"
+          test -s "dist/turtle-macos-intel.tar.gz"
+          test -s "dist/turtle-macos-intel.tar.gz.sha256"
 
-          (
-            cd dist
-            test -s turtle-macos-apple-silicon.tar.gz
-            test -s turtle-macos-intel.tar.gz
-            shasum -a 256 -c turtle-macos-apple-silicon.tar.gz.sha256
-            shasum -a 256 -c turtle-macos-intel.tar.gz.sha256
-          )
+      - name: List packaged files
+        run: ls -l dist
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: turtle-${{ matrix.name }}
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/*.sha256
+          path: dist/*
           if-no-files-found: error
           retention-days: 30
+
+  build-debian:
+    name: debian-12-aarch64
+    runs-on: ubuntu-24.04-arm
+    container: debian:12
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install base tools
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y curl build-essential pkg-config libssl-dev git ca-certificates python3
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+            --default-toolchain stable \
+            --profile minimal \
+            --target aarch64-unknown-linux-gnu
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Cache cargo registry and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: debian-12-aarch64-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            debian-12-aarch64-cargo-
+
+      - name: Show toolchain versions
+        run: |
+          rustc --version
+          cargo --version
+          python3 --version
+
+      - name: cargo check
+        run: cargo check --locked --all-targets --target aarch64-unknown-linux-gnu
+
+      - name: cargo test
+        run: cargo test --locked --all-targets --target aarch64-unknown-linux-gnu
+
+      - name: cargo build --release
+        run: cargo build --locked --release --target aarch64-unknown-linux-gnu
+
+      - name: Smoke test executable
+        run: ./target/aarch64-unknown-linux-gnu/release/turtle --help
+
+      - name: Package release
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/package-release.py \
+            --target "aarch64-unknown-linux-gnu" \
+            --name "debian-12-aarch64" \
+            --binary "target/aarch64-unknown-linux-gnu/release/turtle" \
+            --archive-ext "tar.gz"
+          test -s "dist/turtle-debian-12-aarch64.tar.gz"
+          test -s "dist/turtle-debian-12-aarch64.tar.gz.sha256"
+
+      - name: List packaged files
+        run: ls -l dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: turtle-debian-12-aarch64
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
   release:
     name: Publish GitHub Release
-    needs: build
+    needs: [build, build-debian]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
 
@@ -167,6 +218,10 @@ jobs:
       group: release-${{ github.ref }}
       cancel-in-progress: false
 
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Download all executable artifacts
         uses: actions/download-artifact@v4
@@ -176,13 +231,9 @@ jobs:
           merge-multiple: true
 
       - name: List downloaded release files
-        shell: bash
-        run: |
-          set -euo pipefail
-          find release-assets -type f -print | sort
+        run: find release-assets -type f -print | sort
 
       - name: Verify release archives and checksums
-        shell: bash
         run: |
           set -euo pipefail
           cd release-assets
@@ -210,7 +261,6 @@ jobs:
           done
 
       - name: Create release and upload binaries
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -238,3 +288,4 @@ jobs:
             --verify-tag \
             --title "Turtle $RELEASE_TAG" \
             --generate-notes
+
