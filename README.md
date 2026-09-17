@@ -12,7 +12,13 @@
 
 __SUPPORTED LANGUAGES__
 
-![Badge](https://img.shields.io/badge/%20Rust%20-olive) ![Badge](https://img.shields.io/badge/%20C%20-olive) ![Badge](https://img.shields.io/badge/%20C++%20-olive) ![Badge](https://img.shields.io/badge/%20Jai%20-olive) ![Badge](https://img.shields.io/badge/%20Odin%20-olive) ![Badge](https://img.shields.io/badge/%20Python%20-olive) ![Badge](https://img.shields.io/badge/%20Javascript%20%7C%20Typescript%20-olive) ![Badge](https://img.shields.io/badge/%20Go%20-olive) ![Badge](https://img.shields.io/badge/%20Ruby%20-olive) ![Badge](https://img.shields.io/badge/%20Zig%20-olive) ![Badge](https://img.shields.io/badge/%20Swift%20-olive) ![Badge](https://img.shields.io/badge/%20HTML%20%7C%20Markdown%20-olive) 
+![Badge](https://img.shields.io/badge/%20Rust%20-olive) ![Badge](https://img.shields.io/badge/%20C%20-olive) ![Badge](https://img.shields.io/badge/%20C++%20-olive) ![Badge](https://img.shields.io/badge/%20Jai%20-olive) ![Badge](https://img.shields.io/badge/%20Odin%20-olive) ![Badge](https://img.shields.io/badge/%20Python%20-olive) ![Badge](https://img.shields.io/badge/%20Javascript%20%7C%20Typescript%20-olive) ![Badge](https://img.shields.io/badge/%20Go%20-olive) ![Badge](https://img.shields.io/badge/%20Ruby%20-olive) ![Badge](https://img.shields.io/badge/%20Zig%20-olive) ![Badge](https://img.shields.io/badge/%20Swift%20-olive) ![Badge](https://img.shields.io/badge/%20HTML%20%7C%20Markdown%20-olive)
+
+__A BRIEF MESSAGE FROM ME__
+
+__I personally don't like LLM's and I think if they are consuming resources at the rate they do, it's an issue that needs to be solved. Sadly these companies will never cut back on AI, we need to collectively make that decision to not use their products. We must self host our own models with our machines if we need or want the help of LLM's. We can't become so dependent on these services.__
+
+__This is why I created turtle.__
 
 </div>
 
