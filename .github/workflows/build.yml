@@ -31,9 +31,11 @@ jobs:
             target: aarch64-unknown-linux-gnu
             os: linux
             archive_ext: tar.gz
-          - name: macos-universal
+          - name: macos
             runner: macos-15
+            target: aarch64-apple-darwin
             os: macos
+            archive_ext: tar.gz
           - name: windows-x86_64
             runner: windows-2022
             target: x86_64-pc-windows-msvc
@@ -76,12 +78,11 @@ jobs:
       - name: Add both macOS targets
         if: matrix.os == 'macos'
         run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-      - name: Build Apple Silicon binary
+      - name: Check Intel macOS target (cross-compiled)
         if: matrix.os == 'macos'
-        run: cargo build --locked --release --target aarch64-apple-darwin
+        run: cargo check --locked --all-targets --target x86_64-apple-darwin
 
       - name: Build Intel binary (cross-compiled)
         if: matrix.os == 'macos'
@@ -113,7 +114,7 @@ jobs:
             --binary "target/${{ matrix.target }}/release/turtle" \
             --archive-ext "${{ matrix.archive_ext }}"
 
-      - name: Package release (Windows)
+      - name: Package windows release
         if: matrix.os == 'windows'
         run: |
           python .github/scripts/package-release.py `
@@ -121,6 +122,16 @@ jobs:
             --name "${{ matrix.name }}" `
             --binary "target/${{ matrix.target }}/release/turtle.exe" `
             --archive-ext "${{ matrix.archive_ext }}"
+
+      - name: Package Intel macOS release
+        if: matrix.os == 'macos'
+        run: |
+          python3 .github/scripts/package-release.py \
+            --target "x86_64-apple-darwin" \
+            --name "macos-intel" \
+            --binary "target/x86_64-apple-darwin/release/turtle" \
+            --archive-ext "tar.gz"
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
