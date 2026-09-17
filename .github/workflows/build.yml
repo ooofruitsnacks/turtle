@@ -143,4 +143,82 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
           retention-days: 30
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
 
+    permissions:
+      actions: read
+      contents: write
+
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Download all executable artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: turtle-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release archives and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+
+          expected=(
+            "turtle-ubuntu-24.04-aarch64.tar.gz"
+            "turtle-debian-12-aarch64.tar.gz"
+            "turtle-macos-apple-silicon.tar.gz"
+            "turtle-macos-intel.tar.gz"
+            "turtle-windows-x86_64.zip"
+          )
+
+          for archive in "${expected[@]}"; do
+            if [[ ! -s "$archive" ]]; then
+              echo "::error::Missing or empty release archive: $archive"
+              exit 1
+            fi
+
+            if [[ ! -s "$archive.sha256" ]]; then
+              echo "::error::Missing checksum: $archive.sha256"
+              exit 1
+            fi
+
+            sha256sum --check "$archive.sha256"
+          done
+
+      - name: Create release and upload binaries
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+
+          archives=(
+            "turtle-ubuntu-24.04-aarch64.tar.gz"
+            "turtle-debian-12-aarch64.tar.gz"
+            "turtle-macos-apple-silicon.tar.gz"
+            "turtle-macos-intel.tar.gz"
+            "turtle-windows-x86_64.zip"
+          )
+
+          assets=()
+          for archive in "${archives[@]}"; do
+            assets+=("$archive" "$archive.sha256")
+          done
+
+          gh release create "$RELEASE_TAG" \
+            "${assets[@]}" \
+            --repo "$GH_REPO" \
+            --verify-tag \
+            --title "Turtle $RELEASE_TAG" \
+            --generate-notes
