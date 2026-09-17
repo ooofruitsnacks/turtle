@@ -37,7 +37,7 @@ jobs:
             os: macos
             archive_ext: tar.gz
           - name: macos-intel
-            runner: macos-15
+            runner: macos-13
             target: x86_64-apple-darwin
             os: macos
             archive_ext: tar.gz
