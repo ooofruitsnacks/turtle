@@ -3,7 +3,7 @@
 # Welcome to Turtle! :turtle:
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-purple.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Silicon-blue)](#-download)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-darkgreen)](#-download)
 ![GitHub Repo stars](https://img.shields.io/github/stars/oooFruitSnacks/turtle)
 
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/oooFruitSnacks/turtle/total)
