@@ -16,15 +16,13 @@ __SUPPORTED LANGUAGES__
 
 __A BRIEF MESSAGE FROM ME__
 
-__I personally don't like LLM's and I think if they are consuming resources at the rate they do, it's an issue that needs to be solved. Sadly these companies will never cut back on AI, we need to collectively make that decision to not use their products. We must self host our own models with our machines if we need or want the help of LLM's. We can't become so dependent on these services.__
-
-__This is why I created turtle.__
-
 </div>
 
->[!IMPORTANT]
->APPLE SILICON SUPPORTED CURRENTLY-IM SORRY IM WORKING ON SUPPORTING LINUX AND WINDOWS SHORTLY
+__Hello Users,__
 
+I personally am not the biggest fan of LLM's and I think if they are consuming resources at the rate they do, it's an issue that needs to be solved. Sadly these companies will never cut back on that so we need to collectively make that decision to not use their products. We must self host our own models with our machines if we need or want the help of LLM's. We can't become so dependent on these services.
+
+This is why I created turtle. To give those who want to explore, create, or learn with LLM's in a __ethical__ way. Turtle is actually a lot more powerful than you would think, try it out!!
 
 __How does turtle work?__ :turtle:
 
@@ -43,7 +41,7 @@ Turtle works by using llama.cpp backend support to pull models from Ollama local
 - Rust
 - Ollama
 
-__DEPS. INSTALL__
+__DEPENDENCIES INSTALL__
 
 On your machine of choice, open a terminal and download Homebrew and wait for it to finish. This command can be ran on macOS, Linux or windows.
 
