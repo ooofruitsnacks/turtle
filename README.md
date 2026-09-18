@@ -85,9 +85,7 @@ brew install ollama
 git clone https://github.com/ooofruitsnacks/turtle.git
 ```
 
-and then if not already in the turtle directoy, 
-
-run ```cd turtle``` 
+and then if not already in the turtle directoy run ```cd turtle``` 
 
 To build a release of turtle, run this command:
 
@@ -125,15 +123,6 @@ ollama pull qwen3-coder:30b
 ```
 
 ***
-
-## How to use turtle
-
-### Build release
-
-```
-cd /turtle
-cargo build --release
-```
 
 ## Using The New Commands
 
