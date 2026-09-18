@@ -30,7 +30,7 @@ jobs:
             archive_ext: tar.gz
             exe: ""
             python: python3
-          - name: macos-apple-silicon
+          - name: macOS-silicon
             runner: macos-15
             target: aarch64-apple-darwin
             os: macos
@@ -102,7 +102,6 @@ jobs:
             --binary "target/${{ matrix.target }}/release/turtle${{ matrix.exe }}" \
             --archive-ext "${{ matrix.archive_ext }}"
           test -s "dist/turtle-${{ matrix.name }}.${{ matrix.archive_ext }}"
-          test -s "dist/turtle-${{ matrix.name }}.${{ matrix.archive_ext }}.sha256"
 
       - name: Package Intel macOS release
         if: matrix.os == 'macos'
@@ -114,7 +113,6 @@ jobs:
             --binary "target/x86_64-apple-darwin/release/turtle" \
             --archive-ext "tar.gz"
           test -s "dist/turtle-macos-intel.tar.gz"
-          test -s "dist/turtle-macos-intel.tar.gz.sha256"
 
       - name: List packaged files
         run: ls -l dist
@@ -191,7 +189,6 @@ jobs:
             --binary "target/aarch64-unknown-linux-gnu/release/turtle" \
             --archive-ext "tar.gz"
           test -s "dist/turtle-debian-12-aarch64.tar.gz"
-          test -s "dist/turtle-debian-12-aarch64.tar.gz.sha256"
 
       - name: List packaged files
         run: ls -l dist
@@ -227,21 +224,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: turtle-*
-          path: release-assets
+          path: artifacts
           merge-multiple: true
 
-      - name: List downloaded release files
-        run: find release-assets -type f -print | sort
+      - name: List downloaded artifacts (debug)
+        run: find artifacts -type f -print | sort
 
-      - name: Verify release archives and checksums
+      - name: Flatten archives and verify all platforms are present
         run: |
           set -euo pipefail
-          cd release-assets
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) \
+            -exec cp {} release-files/ \;
+
+          cd release-files
 
           expected=(
             "turtle-ubuntu-24.04-aarch64.tar.gz"
             "turtle-debian-12-aarch64.tar.gz"
-            "turtle-macos-apple-silicon.tar.gz"
+            "turtle-macos-silicon.tar.gz"
             "turtle-macos-intel.tar.gz"
             "turtle-windows-x86_64.zip"
           )
@@ -251,14 +252,15 @@ jobs:
               echo "::error::Missing or empty release archive: $archive"
               exit 1
             fi
-
-            if [[ ! -s "$archive.sha256" ]]; then
-              echo "::error::Missing checksum: $archive.sha256"
-              exit 1
-            fi
-
-            sha256sum --check "$archive.sha256"
           done
+
+      - name: Generate combined SHA256 checksums.txt
+        run: |
+          set -euo pipefail
+          cd release-files
+          sha256sum -- *.tar.gz *.zip > checksums.txt
+          echo "Generated checksums:"
+          cat checksums.txt
 
       - name: Create release and upload binaries
         env:
@@ -267,23 +269,15 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          cd release-assets
-
-          archives=(
-            "turtle-ubuntu-24.04-aarch64.tar.gz"
-            "turtle-debian-12-aarch64.tar.gz"
-            "turtle-macos-apple-silicon.tar.gz"
-            "turtle-macos-intel.tar.gz"
-            "turtle-windows-x86_64.zip"
-          )
-
-          assets=()
-          for archive in "${archives[@]}"; do
-            assets+=("$archive" "$archive.sha256")
-          done
+          cd release-files
 
           gh release create "$RELEASE_TAG" \
-            "${assets[@]}" \
+            turtle-ubuntu-24.04-aarch64.tar.gz \
+            turtle-debian-12-aarch64.tar.gz \
+            turtle-macos-silicon.tar.gz \
+            turtle-macos-intel.tar.gz \
+            turtle-windows-x86_64.zip \
+            checksums.txt \
             --repo "$GH_REPO" \
             --verify-tag \
             --title "Turtle $RELEASE_TAG" \

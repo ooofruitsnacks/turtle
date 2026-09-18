@@ -92,14 +92,10 @@ def main() -> int:
                 if file_path.is_file():
                     zf.write(file_path, arcname=file_path.relative_to(stage_dir.parent))
 
-    checksum = sha256_of(archive_path)
-    checksum_path = Path(f"{archive_path}.sha256")
-    checksum_path.write_text(f"{checksum}  {archive_path.name}\n", encoding="utf-8")
-
     shutil.rmtree(stage_dir)
 
     print(f"Packaged: {archive_path}")
-    print(f"Checksum: {checksum}")
+    print(f"SHA256:   {sha256_of(archive_path)}")
     return 0
 
 
