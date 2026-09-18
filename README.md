@@ -183,3 +183,8 @@ __TypeScript with Bun, HTML, and Markdown__
   --project ./jai-project
 ```
 
+### Zig
+
+Zig checks 
+
+Requires a build.zig in the project root or for a single file project with no build.zig, use ["build-exe", "main.zig", "-femit-bin=zig-out/bin/app"] and ["test", "main.zig"] instead.
