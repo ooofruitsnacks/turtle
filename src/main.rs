@@ -1,9 +1,11 @@
-use anyhow::{ensure, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use clap::Parser;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::time::Duration;
 use turtle::agent::Agent;
 use turtle::config::{ChecksFile, Config, Language, Runtime};
+use turtle::llm::ollama::task_lifecycle::TaskBackend;
 use turtle::llm::ollama::OllamaBackend;
 use turtle::project::Project;
 
@@ -49,6 +51,62 @@ struct Args {
 
     #[arg(long, help = "Print a configuration summary")]
     debug: bool,
+
+    #[arg(
+        long,
+        help = "Request model unloading after task completion, error, or cancellation"
+    )]
+    unload_on_exit: bool,
+
+    #[arg(
+        long,
+        default_value_t = 300,
+        value_parser = clap::value_parser!(u64).range(1..=86_400),
+        help = "Idle model timeout with --unload-on-exit; overrides TURTLE_KEEP_ALIVE"
+    )]
+    idle_unload_secs: u64,
+
+    #[arg(
+        long,
+        default_value_t = 15,
+        value_parser = clap::value_parser!(u64).range(1..=120),
+        help = "Maximum seconds allowed for task-end model cleanup"
+    )]
+    unload_timeout_secs: u64,
+}
+
+/// Wait for graceful shutdown.
+///
+/// On Unix, support both Ctrl+C and SIGTERM.
+/// On Windows, support Ctrl+C.
+///
+/// This does not handle force-kill, power loss, or process aborts.
+async fn shutdown_signal() -> Result<()> {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let mut terminate =
+            signal(SignalKind::terminate()).context("could not install SIGTERM handler")?;
+
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                result.context("could not listen for Ctrl+C")
+            }
+
+            received = terminate.recv() => {
+                received.context("SIGTERM signal stream closed")?;
+                Ok(())
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c()
+            .await
+            .context("could not listen for Ctrl+C")
+    }
 }
 
 #[tokio::main]
@@ -131,12 +189,80 @@ async fn main() -> Result<()> {
 
     ensure!(!prompt.trim().is_empty(), "task must not be empty");
 
-    let backend = OllamaBackend::new(&args.model).with_context_size(config.context_size);
+    let mut backend = OllamaBackend::new(&args.model).with_context_size(config.context_size);
+
+    if args.unload_on_exit {
+        backend = backend.with_idle_unload_secs(args.idle_unload_secs);
+
+        eprintln!(
+            "Task-end unloading enabled: idle fallback={}s, cleanup deadline={}s.",
+            args.idle_unload_secs, args.unload_timeout_secs
+        );
+    }
 
     backend.check().await?;
 
-    let mut agent = Agent::new(&backend, &config);
-    let state = agent.run(&prompt).await?;
+    let task_backend = TaskBackend::new(&backend);
+
+    let (task_result, shutdown_result) = {
+        let mut agent = Agent::new(&task_backend, &config);
+        let task = agent.run(&prompt);
+        tokio::pin!(task);
+
+        tokio::select! {
+            biased;
+
+            signal = shutdown_signal() => {
+                match &signal {
+                    Ok(()) => {
+                        eprintln!(
+                            "\nCancellation requested. Stopping inference; \
+                             waiting for any active edit/check to finish..."
+                        );
+                    }
+
+                    Err(error) => {
+                        eprintln!(
+                            "\nShutdown listener failed: {error:#}. \
+                             Cancelling the task safely..."
+                        );
+                    }
+                }
+
+                task_backend.cancel();
+
+                let result = task.await;
+                (result, Some(signal))
+            }
+
+            result = &mut task => {
+                (result, None)
+            }
+        }
+    };
+
+    if args.unload_on_exit {
+        if let Err(error) = backend
+            .unload_after_task(Duration::from_secs(args.unload_timeout_secs))
+            .await
+        {
+            eprintln!(
+                "Warning: model cleanup did not complete: {error:#}\n\
+                 Ollama's configured idle timeout remains the fallback."
+            );
+        }
+    }
+
+    if let Some(signal) = shutdown_result {
+        if let Err(error) = &task_result {
+            eprintln!("Task stopped: {error:#}");
+        }
+
+        signal.context("shutdown signal listener failed")?;
+        bail!("task cancelled; any edits already written remain in the project");
+    }
+
+    let state = task_result?;
 
     println!(
         "Stopped after {} edit action(s). Verification: {:?}.",

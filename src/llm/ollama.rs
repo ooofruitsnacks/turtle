@@ -6,6 +6,65 @@ use serde_json::{json, Value};
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+pub mod task_lifecycle;
+/// Response schema for Turtle's action protocol.
+///
+/// Both new-file creation and existing-file replacement use "edit".
+/// Semantic validation, including path restrictions and duplicate-file
+/// checks, must still be performed by the agent's action parser.
+///
+/// This backend is configured for action generation, not free-form chat.
+fn action_response_schema() -> Value {
+    json!({
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["edit"]
+                    },
+                    "files": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 12,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "minLength": 1
+                                },
+                                "content": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["path", "content"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["action", "files"],
+                "additionalProperties": false
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["stop"]
+                    },
+                    "reason": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                },
+                "required": ["action", "reason"],
+                "additionalProperties": false
+            }
+        ]
+    })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -180,11 +239,12 @@ impl OllamaBackend {
             "model": self.model_name,
             "messages": messages,
             "stream": true,
+            "format": action_response_schema(),
             "keep_alive": self.keep_alive,
             "options": {
                 "num_ctx": self.context_tokens,
                 "num_predict": output_tokens,
-                "temperature": 0.1
+                "temperature": 0
             }
         });
 
@@ -387,6 +447,35 @@ impl LlmBackend for OllamaBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn action_schema_defines_edit_and_stop_shapes() {
+        let schema = action_response_schema();
+        let alternatives = schema["anyOf"]
+            .as_array()
+            .expect("schema must contain action alternatives");
+
+        assert_eq!(alternatives.len(), 2);
+
+        let edit = &alternatives[0];
+        assert_eq!(edit["type"], json!("object"));
+        assert_eq!(edit["properties"]["action"]["enum"], json!(["edit"]));
+        assert_eq!(edit["required"], json!(["action", "files"]));
+        assert_eq!(edit["additionalProperties"], json!(false));
+
+        let files = &edit["properties"]["files"];
+        assert_eq!(files["type"], json!("array"));
+        assert_eq!(files["minItems"], json!(1));
+        assert_eq!(files["maxItems"], json!(12));
+        assert_eq!(files["items"]["required"], json!(["path", "content"]));
+        assert_eq!(files["items"]["additionalProperties"], json!(false));
+
+        let stop = &alternatives[1];
+        assert_eq!(stop["type"], json!("object"));
+        assert_eq!(stop["properties"]["action"]["enum"], json!(["stop"]));
+        assert_eq!(stop["required"], json!(["action", "reason"]));
+        assert_eq!(stop["additionalProperties"], json!(false));
+    }
 
     #[test]
     fn rollback_removes_complete_assistant_turn() {

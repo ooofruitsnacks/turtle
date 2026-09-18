@@ -452,12 +452,12 @@ impl<'a> Agent<'a> {
                          Previous response was rejected: {}.\n\
                          Return exactly one JSON object using the system \
                          response schema. No Markdown fences or prose.",
-                        clipped(&error.to_string(), 500)
+                        clipped(&format!("{error:#}"), 1500)
                     );
                 }
                 Err(error) => {
                     self.llm.pop_last().await;
-                    bail!("invalid model action after one retry: {error}");
+                    bail!("invalid model action after one retry: {error:#}");
                 }
             }
         }
