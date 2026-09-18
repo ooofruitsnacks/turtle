@@ -2,6 +2,8 @@ use anyhow::{ensure, Result};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+pub const MIN_CONTEXT_TOKENS: u32 = 4_096;
+pub const MAX_CONTEXT_TOKENS: u32 = 262_144;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, ValueEnum)]
 pub enum Language {
@@ -197,8 +199,11 @@ impl Config {
 
     pub fn validate(&self) -> Result<()> {
         ensure!(
-            (4096..=131072).contains(&self.context_size),
-            "context size must be between 4096 and 131072"
+            (MIN_CONTEXT_TOKENS..=MAX_CONTEXT_TOKENS).contains(&self.context_size),
+            "context size must be between {} and {} tokens; \
+             the selected model and available memory may impose lower limits",
+            MIN_CONTEXT_TOKENS,
+            MAX_CONTEXT_TOKENS
         );
         ensure!(self.max_iterations <= 12, "maximum repair iterations is 12");
 

@@ -1,4 +1,5 @@
 use super::LlmBackend;
+use crate::config::{MAX_CONTEXT_TOKENS, MIN_CONTEXT_TOKENS};
 use anyhow::{bail, ensure, Context, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -7,13 +8,7 @@ use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 pub mod task_lifecycle;
-/// Response schema for Turtle's action protocol.
-///
-/// Both new-file creation and existing-file replacement use "edit".
-/// Semantic validation, including path restrictions and duplicate-file
-/// checks, must still be performed by the agent's action parser.
-///
-/// This backend is configured for action generation, not free-form chat.
+
 fn action_response_schema() -> Value {
     json!({
         "anyOf": [
@@ -147,7 +142,8 @@ impl OllamaBackend {
             base_url: base_url.trim_end_matches('/').to_owned(),
             history: Mutex::new(vec![ChatMessage::new("system", "")]),
             request_lock: Mutex::new(()),
-            context_tokens: env_u32("TURTLE_NUM_CTX", 8192).clamp(4096, 131072),
+            context_tokens: env_u32("TURTLE_NUM_CTX", 8192)
+                .clamp(MIN_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS),
             recent_turns: env_u32("TURTLE_HISTORY_TURNS", 1).min(8) as usize,
             keep_alive: std::env::var("TURTLE_KEEP_ALIVE").unwrap_or_else(|_| "5m".into()),
             preview: env_bool("TURTLE_STREAM_PREVIEW", true),
@@ -155,7 +151,7 @@ impl OllamaBackend {
     }
 
     pub fn with_context_size(mut self, tokens: u32) -> Self {
-        self.context_tokens = tokens.clamp(4096, 131072);
+        self.context_tokens = tokens.clamp(MIN_CONTEXT_TOKENS, MAX_CONTEXT_TOKENS);
         self
     }
 
