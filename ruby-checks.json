@@ -1,0 +1,22 @@
+{
+  "checks": [
+    {
+      "name": "Bundler dependency check",
+      "program": "bundle",
+      "args": ["check"],
+      "timeout_secs": 120
+    },
+    {
+      "name": "RuboCop lint",
+      "program": "bundle",
+      "args": ["exec", "rubocop", "--no-color", "--fail-level", "error"],
+      "timeout_secs": 300
+    },
+    {
+      "name": "RSpec tests",
+      "program": "bundle",
+      "args": ["exec", "rspec", "--no-color"],
+      "timeout_secs": 600
+    }
+  ]
+}

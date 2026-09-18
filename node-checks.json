@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "name": "TypeScript type checking",
+      "program": "npx",
+      "args": ["--no-install", "tsc", "--noEmit"],
+      "timeout_secs": 300
+    },
+    {
+      "name": "Project lint",
+      "program": "npm",
+      "args": ["run", "--silent", "lint"],
+      "timeout_secs": 300
+    },
+    {
+      "name": "Project tests",
+      "program": "npm",
+      "args": ["test", "--silent"],
+      "timeout_secs": 600
+    }
+  ]
+}
+

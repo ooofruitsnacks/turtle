@@ -1,0 +1,17 @@
+{
+  "checks": [
+    {
+      "name": "Zig build",
+      "program": "zig",
+      "args": ["build", "--summary", "all"],
+      "timeout_secs": 600
+    },
+    {
+      "name": "Zig tests",
+      "program": "zig",
+      "args": ["build", "test", "--summary", "all"],
+      "timeout_secs": 600
+    }
+  ]
+}
+
