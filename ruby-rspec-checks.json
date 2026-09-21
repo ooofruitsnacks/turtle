@@ -1,0 +1,16 @@
+{
+  "checks": [
+    {
+      "name": "Ruby RSpec behavioral tests",
+      "program": "bundle",
+      "args": [
+        "exec",
+        "rspec",
+        "--format",
+        "progress"
+      ],
+      "timeout_secs": 600
+    }
+  ]
+}
+

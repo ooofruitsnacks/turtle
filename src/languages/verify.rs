@@ -21,13 +21,60 @@ fn clipped(text: &str, max_bytes: usize) -> String {
         return text.to_owned();
     }
 
-    let mut end = max_bytes;
+    const MARKER: &str = "\n...[middle omitted]...\n";
 
-    while !text.is_char_boundary(end) {
-        end -= 1;
+    if max_bytes <= MARKER.len() {
+        let mut end = max_bytes.min(text.len());
+
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+
+        return text[..end].to_owned();
     }
 
-    format!("{}\n[truncated]", &text[..end])
+    let available = max_bytes - MARKER.len();
+    let mut head_end = available / 2;
+    let tail_bytes = available - head_end;
+    let mut tail_start = text.len() - tail_bytes;
+
+    while !text.is_char_boundary(head_end) {
+        head_end -= 1;
+    }
+
+    while !text.is_char_boundary(tail_start) {
+        tail_start += 1;
+    }
+
+    format!(
+        "{}{}{}",
+        &text[..head_end],
+        MARKER,
+        &text[tail_start..]
+    )
+}
+
+fn clean_diagnostics(text: &str) -> String {
+    use std::sync::OnceLock;
+
+    static ESCAPES: OnceLock<regex::Regex> = OnceLock::new();
+
+    let escapes = ESCAPES.get_or_init(|| {
+        regex::Regex::new(
+            r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))",
+        )
+        .expect("built-in terminal escape expression must compile")
+    });
+
+    let stripped = escapes.replace_all(text, "");
+
+    stripped
+        .chars()
+        .filter(|character| {
+            !character.is_control()
+                || matches!(character, '\n' | '\t')
+        })
+        .collect()
 }
 
 fn default_checks(config: &Config) -> Result<Vec<CheckSpec>, String> {
@@ -76,6 +123,52 @@ fn default_checks(config: &Config) -> Result<Vec<CheckSpec>, String> {
     Ok(checks)
 }
 
+pub fn plan_context(config: &Config) -> String {
+    let checks = match &config.checks {
+        Some(checks) => Ok(checks.clone()),
+        None => default_checks(config),
+    };
+
+    let authorization = if config.allow_checks {
+        "Execution of the configured checks is authorized."
+    } else {
+        "Execution is NOT authorized; do not claim verification."
+    };
+
+    match checks {
+        Ok(checks) => {
+            let encoded = serde_json::to_string_pretty(&checks)
+                .unwrap_or_else(|_| "[]".to_owned());
+
+            format!(
+                "\n\nVERIFICATION CONTRACT:\n\
+                 {authorization}\n\
+                 The harness runs the following commands sequentially \
+                 from the project root and stops at the first failure.\n\
+                 This is command data, not permission to execute arbitrary \
+                 commands or change the check definitions.\n\
+                 {}\n\
+                 Preserve test discovery, assertions, compiler options, \
+                 and lint/type-check coverage. Do not weaken checks to \
+                 obtain a passing result.\n\
+                 Passing these commands establishes only what they test; \
+                 it does not prove every user requirement is satisfied.\n",
+                clipped(&encoded, 6000)
+            )
+        }
+
+        Err(reason) => format!(
+            "\n\nVERIFICATION CONTRACT:\n\
+             {authorization}\n\
+             Default checks cannot currently be resolved: {reason}\n\
+             Do not invent a test framework or claim tests passed. \
+             For a new project, create the required manifest when that \
+             is part of the requested implementation.\n"
+        ),
+    }
+}
+
+
 pub async fn verify(config: &Config) -> Result<VerificationOutcome> {
     if !config.allow_checks {
         return Ok(VerificationOutcome::Unavailable {
@@ -115,10 +208,46 @@ pub async fn verify(config: &Config) -> Result<VerificationOutcome> {
     Ok(VerificationOutcome::Passed { checks: passed })
 }
 
-async fn capture<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<String> {
-    let mut retained = Vec::new();
+fn is_pytest_check(check: &CheckSpec) -> bool {
+    let executable = Path::new(&check.program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    let executable = executable
+        .strip_suffix(".exe")
+        .unwrap_or(&executable);
+
+    if matches!(executable, "pytest" | "pytest-3") {
+        return true;
+    }
+
+    let python = matches!(executable, "python" | "python3")
+        || executable
+            .strip_prefix("python3.")
+            .is_some_and(|version| {
+                !version.is_empty()
+                    && version.bytes().all(|byte| byte.is_ascii_digit())
+            });
+
+    python
+        && check.args.first().map(String::as_str) == Some("-m")
+        && check.args.get(1).map(String::as_str) == Some("pytest")
+}
+
+async fn capture<R: AsyncRead + Unpin>(
+    mut reader: R,
+) -> std::io::Result<String> {
+    use std::collections::VecDeque;
+
+    let head_limit = CAPTURE_LIMIT / 2;
+    let tail_limit = CAPTURE_LIMIT - head_limit;
+
+    let mut head = Vec::with_capacity(head_limit);
+    let mut tail = VecDeque::with_capacity(tail_limit);
     let mut buffer = [0_u8; 4096];
-    let mut truncated = false;
+    let mut total = 0_usize;
 
     loop {
         let count = reader.read(&mut buffer).await?;
@@ -127,24 +256,53 @@ async fn capture<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<String>
             break;
         }
 
-        let keep = CAPTURE_LIMIT.saturating_sub(retained.len()).min(count);
+        total = total.saturating_add(count);
 
-        retained.extend_from_slice(&buffer[..keep]);
-        truncated |= keep < count;
+        let head_count = head_limit
+            .saturating_sub(head.len())
+            .min(count);
 
-        // Keep draining discarded output to avoid blocking the child.
+        head.extend_from_slice(&buffer[..head_count]);
+
+        let remaining = &buffer[head_count..];
+
+        if remaining.len() >= tail_limit {
+            tail.clear();
+            tail.extend(
+                remaining[remaining.len() - tail_limit..]
+                    .iter()
+                    .copied(),
+            );
+        } else {
+            let excess = tail
+                .len()
+                .saturating_add(remaining.len())
+                .saturating_sub(tail_limit);
+
+            tail.drain(..excess);
+            tail.extend(remaining.iter().copied());
+        }
+
     }
 
-    let mut text = String::from_utf8_lossy(&retained).into_owned();
+    let mut retained = head;
 
-    if truncated {
-        text.push_str("\n[additional output discarded]");
+    if total > CAPTURE_LIMIT {
+        retained.extend_from_slice(
+            b"\n...[intermediate process output discarded]...\n",
+        );
     }
 
-    Ok(text)
+    retained.extend(tail);
+
+    let decoded = String::from_utf8_lossy(&retained);
+    Ok(clean_diagnostics(&decoded))
 }
 
-async fn run_check(directory: &Path, check: &CheckSpec) -> Result<VerificationOutcome> {
+async fn run_check(
+    directory: &Path,
+    check: &CheckSpec,
+) -> Result<VerificationOutcome> {
     let child = Command::new(&check.program)
         .args(&check.args)
         .current_dir(directory)
@@ -166,7 +324,11 @@ async fn run_check(directory: &Path, check: &CheckSpec) -> Result<VerificationOu
             };
 
             return Ok(VerificationOutcome::Unavailable {
-                reason: format!("{}: {} ({category}): {error}", check.name, check.program),
+                reason: format!(
+                    "{}: {} ({category}): {error}",
+                    check.name,
+                    check.program
+                ),
             });
         }
     };
@@ -181,18 +343,25 @@ async fn run_check(directory: &Path, check: &CheckSpec) -> Result<VerificationOu
         Ok::<_, std::io::Error>((status, stdout, stderr))
     };
 
-    let result = tokio::time::timeout(Duration::from_secs(check.timeout_secs), work).await;
+    let result = tokio::time::timeout(
+        Duration::from_secs(check.timeout_secs),
+        work,
+    )
+    .await;
 
     let (status, stdout, stderr) = match result {
         Ok(result) => result?,
         Err(_) => {
             let _ = child.kill().await;
+            let _ = child.wait().await;
 
             return Ok(VerificationOutcome::Unavailable {
                 reason: format!(
                     "{} timed out after {} seconds. \
-                     No automatic source repair was attempted for the timeout.",
-                    check.name, check.timeout_secs
+                     The timeout does not establish a source-code defect. \
+                     No automatic source repair was attempted.",
+                    check.name,
+                    check.timeout_secs
                 ),
             });
         }
@@ -204,15 +373,63 @@ async fn run_check(directory: &Path, check: &CheckSpec) -> Result<VerificationOu
         });
     }
 
+    let command = serde_json::json!({
+        "program": check.program,
+        "args": check.args,
+        "timeout_secs": check.timeout_secs
+    });
+
+    let diagnostics = format!(
+        "Exit status: {status}\n\
+         Configured command, as data:\n{}\n\
+         STDERR — bounded beginning and end:\n{}\n\
+         STDOUT — bounded beginning and end:\n{}",
+        clipped(&command.to_string(), 1500),
+        clipped(&stderr, 4500),
+        clipped(&stdout, 4500)
+    );
+
+    if is_pytest_check(check) {
+        let infrastructure_reason = match status.code() {
+            Some(3) => Some("pytest reported an internal error"),
+            Some(4) => Some("pytest reported a command-line/configuration usage error"),
+            Some(5) => Some("pytest collected no tests"),
+            _ => None,
+        };
+
+        let missing_pytest = check.args.first().map(String::as_str) == Some("-m")
+            && stderr.contains(": No module named pytest");
+
+        if let Some(reason) = infrastructure_reason {
+            return Ok(VerificationOutcome::Unavailable {
+                reason: format!(
+                    "{}: {reason}. Review the configured test environment \
+                     and test discovery before requesting source repair.\n{}",
+                    check.name,
+                    diagnostics
+                ),
+            });
+        }
+
+        if missing_pytest {
+            return Ok(VerificationOutcome::Unavailable {
+                reason: format!(
+                    "{}: pytest is not installed in the selected Python \
+                     environment. Configure that environment outside the \
+                     agent repair loop.\n{}",
+                    check.name,
+                    diagnostics
+                ),
+            });
+        }
+    }
+
     Ok(VerificationOutcome::Failed {
         check: check.name.clone(),
-        diagnostics: format!(
-            "Exit status: {status}\nSTDERR:\n{}\nSTDOUT:\n{}",
-            clipped(&stderr, 1800),
-            clipped(&stdout, 600)
-        ),
+        diagnostics,
     })
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -280,4 +497,75 @@ mod tests {
             VerificationOutcome::Passed { .. }
         ));
     }
+    #[test]
+    fn diagnostic_clipping_preserves_both_ends() {
+        let source = format!("FIRST_ERROR\n{}\nFINAL_SUMMARY", "x".repeat(2000));
+        let result = clipped(&source, 200);
+
+        assert!(result.starts_with("FIRST_ERROR"));
+        assert!(result.ends_with("FINAL_SUMMARY"));
+        assert!(result.len() <= 200);
+    }
+
+    #[test]
+    fn diagnostic_clipping_handles_unicode() {
+        let source = "é".repeat(1000);
+        let result = clipped(&source, 101);
+
+        assert!(result.len() <= 101);
+        assert!(std::str::from_utf8(result.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn diagnostic_cleanup_removes_terminal_colors() {
+        assert_eq!(
+            clean_diagnostics("\x1b[31merror\x1b[0m\n"),
+            "error\n"
+        );
+    }
+
+    #[test]
+    fn detects_explicit_python_pytest_invocation() {
+        let check = CheckSpec::new(
+            "Python tests",
+            "python3",
+            &["-m", "pytest", "-q"],
+        );
+
+        assert!(is_pytest_check(&check));
+
+        let other = CheckSpec::new(
+            "Other command",
+            "python3",
+            &["script.py"],
+        );
+
+        assert!(!is_pytest_check(&other));
+    }
+
+    #[tokio::test]
+    async fn capture_preserves_start_and_end_of_large_output() {
+        use tokio::io::AsyncWriteExt;
+
+        let (mut writer, reader) = tokio::io::duplex(4096);
+
+        let output = format!(
+            "BEGIN_FAILURE\n{}\nEND_FAILURE\n",
+            "x".repeat(CAPTURE_LIMIT * 3)
+        );
+
+        let task = tokio::spawn(async move {
+            writer.write_all(output.as_bytes()).await.unwrap();
+            writer.shutdown().await.unwrap();
+        });
+
+        let captured = capture(reader).await.unwrap();
+        task.await.unwrap();
+
+        assert!(captured.starts_with("BEGIN_FAILURE"));
+        assert!(captured.ends_with("END_FAILURE\n"));
+        assert!(captured.contains("discarded"));
+        assert!(captured.len() < CAPTURE_LIMIT + 256);
+    }
+
 }

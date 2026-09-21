@@ -1,0 +1,18 @@
+{
+  "checks": [
+    {
+      "name": "Python behavioral tests",
+      "program": "python3",
+      "args": [
+        "-m",
+        "pytest",
+        "-q",
+        "-ra",
+        "--tb=short",
+        "--color=no"
+      ],
+      "timeout_secs": 300
+    }
+  ]
+}
+

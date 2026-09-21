@@ -3,20 +3,33 @@
     {
       "name": "Bundler dependency check",
       "program": "bundle",
-      "args": ["check"],
+      "args": [
+        "check"
+      ],
       "timeout_secs": 120
     },
     {
       "name": "RuboCop lint",
       "program": "bundle",
-      "args": ["exec", "rubocop", "--no-color", "--fail-level", "error"],
+      "args": [
+        "exec",
+        "rubocop",
+        "--no-color",
+        "--fail-level",
+        "error"
+      ],
       "timeout_secs": 300
     },
     {
-      "name": "RSpec tests",
+      "name": "Ruby project tests",
       "program": "bundle",
-      "args": ["exec", "rspec", "--no-color"],
+      "args": [
+        "exec",
+        "rake",
+        "test"
+      ],
       "timeout_secs": 600
     }
   ]
 }
+

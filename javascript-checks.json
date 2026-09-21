@@ -1,0 +1,14 @@
+{
+  "checks": [
+    {
+      "name": "JavaScript behavioral tests",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "timeout_secs": 600
+    }
+  ]
+}
+

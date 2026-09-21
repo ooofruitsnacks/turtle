@@ -1,0 +1,27 @@
+{
+  "checks": [
+    {
+      "name": "TypeScript type checking",
+      "program": "node",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--project",
+        "tsconfig.json",
+        "--noEmit",
+        "--pretty",
+        "false"
+      ],
+      "timeout_secs": 300
+    },
+    {
+      "name": "Project behavioral tests",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "timeout_secs": 600
+    }
+  ]
+}
+
