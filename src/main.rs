@@ -8,12 +8,16 @@ use turtle::config::{ChecksFile, Config, Language, Runtime};
 use turtle::llm::ollama::task_lifecycle::TaskBackend;
 use turtle::llm::ollama::OllamaBackend;
 use turtle::project::Project;
+use turtle::web::{WebOptions, WebSession};
 
 #[derive(Parser, Debug)]
 #[command(name = "turtle", about = "Local multilingual coding assistant")]
 struct Args {
     #[arg(short, long, help = "Installed Ollama model name")]
     model: String,
+
+    #[command(flatten)]
+    web: WebOptions,
 
     #[arg(
         short,
@@ -340,7 +344,15 @@ async fn main() -> Result<()> {
 
     prompt = attach_context_files(&prompt, &args.context_files, context_bytes)?;
 
-    let mut backend = OllamaBackend::new(&args.model).with_context_size(config.context_size);
+    let web = if args.web.allow_web {
+        Some(WebSession::new(args.web.clone())?)
+    } else {
+        None
+    };
+
+    let mut backend = OllamaBackend::new(&args.model)
+        .with_context_size(config.context_size)
+        .with_web_tools(web.is_some());
 
     if args.unload_on_exit {
         backend = backend.with_idle_unload_secs(args.idle_unload_secs);
@@ -357,7 +369,13 @@ async fn main() -> Result<()> {
 
     let (task_result, shutdown_result) = {
         let mut agent = Agent::new(&task_backend, &config);
+
+        if let Some(web) = web.as_ref() {
+            agent = agent.with_web(web);
+        }
+
         let task = agent.run(&prompt);
+
         tokio::pin!(task);
 
         tokio::select! {
@@ -382,7 +400,12 @@ async fn main() -> Result<()> {
 
                 task_backend.cancel();
 
+                if let Some(web) = web.as_ref() {
+                    web.cancel();
+                }
+
                 let result = task.await;
+
                 (result, Some(signal))
             }
 
@@ -393,6 +416,29 @@ async fn main() -> Result<()> {
     };
 
     drop(task_backend);
+
+    if let Some(web) = web.as_ref() {
+        match tokio::time::timeout(Duration::from_secs(60), web.shutdown()).await {
+            Ok(Ok(())) => {}
+
+            Ok(Err(error)) => {
+                eprintln!(
+                    "Warning: web-container cleanup failed: {error:#}\n\
+                    The container's maximum-lifetime watchdog remains \
+                    a fallback while Docker is operating."
+                );
+            }
+
+            Err(_) => {
+                eprintln!(
+                    "Warning: web-container cleanup exceeded 60 seconds.\n\
+                    Inspect containers labeled org.turtle.web.managed=1."
+                );
+            }
+        }
+    }
+
+    drop(web);
 
     drop(prompt);
 

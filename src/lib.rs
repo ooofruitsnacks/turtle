@@ -10,3 +10,4 @@ pub mod llm;
 pub mod project;
 pub mod rag;
 pub mod tools;
+pub mod web;

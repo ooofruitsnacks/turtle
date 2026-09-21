@@ -6,6 +6,7 @@ use crate::languages;
 use crate::languages::verify::{self, VerificationOutcome};
 use crate::llm::LlmBackend;
 use crate::tools;
+use crate::web::{WebAction, WebSession, SYSTEM_EXTENSION};
 
 use anyhow::{bail, ensure, Context, Result};
 use serde::Deserialize;
@@ -47,6 +48,7 @@ pub struct Agent<'a> {
     llm: &'a dyn LlmBackend,
     config: &'a Config,
     brain: ContextBrain,
+    web: Option<&'a WebSession>,
 }
 
 fn limit(name: &str, default: usize, min: usize, max: usize) -> usize {
@@ -306,16 +308,26 @@ impl<'a> Agent<'a> {
             llm,
             config,
             brain: ContextBrain::load(&config.project_dir),
+            web: None,
         }
+    }
+    pub fn with_web(mut self, web: &'a WebSession) -> Self {
+        self.web = Some(web);
+        self
     }
 
     pub async fn run(&mut self, task: &str) -> Result<AgentState> {
         self.config.validate()?;
         ensure!(!task.trim().is_empty(), "task must not be empty");
 
-        self.llm
-            .set_system(&languages::system_prompt(self.config))
-            .await;
+        let mut system = languages::system_prompt(self.config);
+
+        if self.web.is_some() {
+            system.push_str("\n\n");
+            system.push_str(SYSTEM_EXTENSION);
+        }
+
+        self.llm.set_system(&system).await;
 
         let result = self.run_inner(task).await;
 
@@ -437,32 +449,55 @@ impl<'a> Agent<'a> {
     async fn complete_action(&self, prompt: &str) -> Result<Action> {
         let tokens = limit("TURTLE_OUTPUT_TOKENS", 4096, 512, 65536) as u32;
 
-        let mut request = prompt.to_owned();
+        let mut correction = String::new();
+        let mut invalid_responses = 0;
 
-        for attempt in 0..2 {
+        // Independent of file-edit iterations. This also bounds attempts
+        // to repeat exhausted or malformed tool actions.
+        for _ in 0..14 {
+            let mut request = prompt.to_owned();
+
+            if let Some(web) = self.web {
+                request.push_str(&web.prompt_suffix().await?);
+            }
+
+            request.push_str(&correction);
+
             let response = self.llm.complete_with_budget(&request, tokens).await?;
+
+            if let Some(web) = self.web {
+                if let Ok(Some(action)) = WebAction::parse(&response) {
+                    self.llm.pop_last().await;
+
+                    web.execute(action).await?;
+                    correction.clear();
+                    continue;
+                }
+            }
 
             match parse_action(&response) {
                 Ok(action) => return Ok(action),
-                Err(error) if attempt == 0 => {
-                    self.llm.pop_last().await;
 
-                    request = format!(
-                        "{prompt}\n\n\
-                         Previous response was rejected: {}.\n\
-                         Return exactly one JSON object using the system \
-                         response schema. No Markdown fences or prose.",
-                        clipped(&format!("{error:#}"), 1500)
-                    );
-                }
                 Err(error) => {
                     self.llm.pop_last().await;
-                    bail!("invalid model action after one retry: {error:#}");
+                    invalid_responses += 1;
+
+                    ensure!(
+                        invalid_responses < 2,
+                        "invalid model action after one retry: {error:#}"
+                    );
+
+                    correction = format!(
+                        "\n\nPrevious response was rejected: {}.\n\
+                        Return exactly one JSON object using the enabled \
+                        response schema. No Markdown fences or prose.",
+                        clipped(&format!("{error:#}"), 1500)
+                    );
                 }
             }
         }
 
-        unreachable!()
+        bail!("model exceeded the web/action round limit")
     }
 
     async fn apply_action(

@@ -85,6 +85,7 @@ pub struct OllamaBackend {
     context_tokens: u32,
     recent_turns: usize,
     keep_alive: String,
+    web_tools: bool,
     preview: bool,
 }
 
@@ -147,7 +148,12 @@ impl OllamaBackend {
             recent_turns: env_u32("TURTLE_HISTORY_TURNS", 1).min(8) as usize,
             keep_alive: std::env::var("TURTLE_KEEP_ALIVE").unwrap_or_else(|_| "5m".into()),
             preview: env_bool("TURTLE_STREAM_PREVIEW", true),
+            web_tools: false,
         }
+    }
+    pub fn with_web_tools(mut self, enabled: bool) -> Self {
+        self.web_tools = enabled;
+        self
     }
 
     pub fn with_context_size(mut self, tokens: u32) -> Self {
@@ -235,7 +241,10 @@ impl OllamaBackend {
             "model": self.model_name,
             "messages": messages,
             "stream": true,
-            "format": action_response_schema(),
+            "format": crate::web::response_schema(
+                action_response_schema(),
+                self.web_tools,
+            ),
             "keep_alive": self.keep_alive,
             "options": {
                 "num_ctx": self.context_tokens,
