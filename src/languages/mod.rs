@@ -260,7 +260,6 @@ pub fn source_allowed(path: &Path) -> bool {
         return true;
     }
 
-
     if name.starts_with('.')
         || lower.ends_with(".lock")
         || lower.contains("credentials")

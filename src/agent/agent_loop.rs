@@ -189,9 +189,7 @@ fn build_view(sources: &[SourceFile], query: &str) -> ProjectView {
     let query_lower = query.to_lowercase();
 
     let terms: HashSet<String> = query
-        .split(|character: char| {
-            !character.is_alphanumeric() && character != '_'
-        })
+        .split(|character: char| !character.is_alphanumeric() && character != '_')
         .filter(|word| word.len() >= 3)
         .take(128)
         .map(str::to_lowercase)
@@ -242,8 +240,7 @@ fn build_view(sources: &[SourceFile], query: &str) -> ProjectView {
             let lexical_score: usize = terms
                 .iter()
                 .map(|term| {
-                    usize::from(path.contains(term)) * 12
-                        + usize::from(content.contains(term))
+                    usize::from(path.contains(term)) * 12 + usize::from(content.contains(term))
                 })
                 .sum();
 
@@ -327,9 +324,7 @@ fn build_view(sources: &[SourceFile], query: &str) -> ProjectView {
 
         text.push_str(&format!(
             "\nBEGIN SOURCE: {}\n{}\nEND SOURCE: {}\n",
-            source.path,
-            source.content,
-            source.path
+            source.path, source.content, source.path
         ));
 
         used += cost;
@@ -337,9 +332,7 @@ fn build_view(sources: &[SourceFile], query: &str) -> ProjectView {
     }
 
     if !omitted_for_size.is_empty() {
-        text.push_str(
-            "\nSome files did not fit the remaining complete-source budget:\n",
-        );
+        text.push_str("\nSome files did not fit the remaining complete-source budget:\n");
         text.push_str(&omitted_for_size.join("\n"));
         text.push('\n');
     }

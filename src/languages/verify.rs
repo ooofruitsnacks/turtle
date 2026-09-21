@@ -46,12 +46,7 @@ fn clipped(text: &str, max_bytes: usize) -> String {
         tail_start += 1;
     }
 
-    format!(
-        "{}{}{}",
-        &text[..head_end],
-        MARKER,
-        &text[tail_start..]
-    )
+    format!("{}{}{}", &text[..head_end], MARKER, &text[tail_start..])
 }
 
 fn clean_diagnostics(text: &str) -> String {
@@ -60,20 +55,15 @@ fn clean_diagnostics(text: &str) -> String {
     static ESCAPES: OnceLock<regex::Regex> = OnceLock::new();
 
     let escapes = ESCAPES.get_or_init(|| {
-        regex::Regex::new(
-            r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))",
-        )
-        .expect("built-in terminal escape expression must compile")
+        regex::Regex::new(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\))")
+            .expect("built-in terminal escape expression must compile")
     });
 
     let stripped = escapes.replace_all(text, "");
 
     stripped
         .chars()
-        .filter(|character| {
-            !character.is_control()
-                || matches!(character, '\n' | '\t')
-        })
+        .filter(|character| !character.is_control() || matches!(character, '\n' | '\t'))
         .collect()
 }
 
@@ -137,8 +127,7 @@ pub fn plan_context(config: &Config) -> String {
 
     match checks {
         Ok(checks) => {
-            let encoded = serde_json::to_string_pretty(&checks)
-                .unwrap_or_else(|_| "[]".to_owned());
+            let encoded = serde_json::to_string_pretty(&checks).unwrap_or_else(|_| "[]".to_owned());
 
             format!(
                 "\n\nVERIFICATION CONTRACT:\n\
@@ -167,7 +156,6 @@ pub fn plan_context(config: &Config) -> String {
         ),
     }
 }
-
 
 pub async fn verify(config: &Config) -> Result<VerificationOutcome> {
     if !config.allow_checks {
@@ -215,30 +203,23 @@ fn is_pytest_check(check: &CheckSpec) -> bool {
         .unwrap_or("")
         .to_ascii_lowercase();
 
-    let executable = executable
-        .strip_suffix(".exe")
-        .unwrap_or(&executable);
+    let executable = executable.strip_suffix(".exe").unwrap_or(&executable);
 
     if matches!(executable, "pytest" | "pytest-3") {
         return true;
     }
 
     let python = matches!(executable, "python" | "python3")
-        || executable
-            .strip_prefix("python3.")
-            .is_some_and(|version| {
-                !version.is_empty()
-                    && version.bytes().all(|byte| byte.is_ascii_digit())
-            });
+        || executable.strip_prefix("python3.").is_some_and(|version| {
+            !version.is_empty() && version.bytes().all(|byte| byte.is_ascii_digit())
+        });
 
     python
         && check.args.first().map(String::as_str) == Some("-m")
         && check.args.get(1).map(String::as_str) == Some("pytest")
 }
 
-async fn capture<R: AsyncRead + Unpin>(
-    mut reader: R,
-) -> std::io::Result<String> {
+async fn capture<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<String> {
     use std::collections::VecDeque;
 
     let head_limit = CAPTURE_LIMIT / 2;
@@ -258,21 +239,15 @@ async fn capture<R: AsyncRead + Unpin>(
 
         total = total.saturating_add(count);
 
-        let head_count = head_limit
-            .saturating_sub(head.len())
-            .min(count);
+        let head_count = head_limit.saturating_sub(head.len()).min(count);
 
         head.extend_from_slice(&buffer[..head_count]);
 
-        let remaining = &buffer[head_count..];
+        let remaining = &buffer[head_count..count];
 
         if remaining.len() >= tail_limit {
             tail.clear();
-            tail.extend(
-                remaining[remaining.len() - tail_limit..]
-                    .iter()
-                    .copied(),
-            );
+            tail.extend(remaining[remaining.len() - tail_limit..].iter().copied());
         } else {
             let excess = tail
                 .len()
@@ -282,15 +257,12 @@ async fn capture<R: AsyncRead + Unpin>(
             tail.drain(..excess);
             tail.extend(remaining.iter().copied());
         }
-
     }
 
     let mut retained = head;
 
     if total > CAPTURE_LIMIT {
-        retained.extend_from_slice(
-            b"\n...[intermediate process output discarded]...\n",
-        );
+        retained.extend_from_slice(b"\n...[intermediate process output discarded]...\n");
     }
 
     retained.extend(tail);
@@ -299,10 +271,7 @@ async fn capture<R: AsyncRead + Unpin>(
     Ok(clean_diagnostics(&decoded))
 }
 
-async fn run_check(
-    directory: &Path,
-    check: &CheckSpec,
-) -> Result<VerificationOutcome> {
+async fn run_check(directory: &Path, check: &CheckSpec) -> Result<VerificationOutcome> {
     let child = Command::new(&check.program)
         .args(&check.args)
         .current_dir(directory)
@@ -324,11 +293,7 @@ async fn run_check(
             };
 
             return Ok(VerificationOutcome::Unavailable {
-                reason: format!(
-                    "{}: {} ({category}): {error}",
-                    check.name,
-                    check.program
-                ),
+                reason: format!("{}: {} ({category}): {error}", check.name, check.program),
             });
         }
     };
@@ -343,11 +308,7 @@ async fn run_check(
         Ok::<_, std::io::Error>((status, stdout, stderr))
     };
 
-    let result = tokio::time::timeout(
-        Duration::from_secs(check.timeout_secs),
-        work,
-    )
-    .await;
+    let result = tokio::time::timeout(Duration::from_secs(check.timeout_secs), work).await;
 
     let (status, stdout, stderr) = match result {
         Ok(result) => result?,
@@ -360,8 +321,7 @@ async fn run_check(
                     "{} timed out after {} seconds. \
                      The timeout does not establish a source-code defect. \
                      No automatic source repair was attempted.",
-                    check.name,
-                    check.timeout_secs
+                    check.name, check.timeout_secs
                 ),
             });
         }
@@ -405,8 +365,7 @@ async fn run_check(
                 reason: format!(
                     "{}: {reason}. Review the configured test environment \
                      and test discovery before requesting source repair.\n{}",
-                    check.name,
-                    diagnostics
+                    check.name, diagnostics
                 ),
             });
         }
@@ -417,8 +376,7 @@ async fn run_check(
                     "{}: pytest is not installed in the selected Python \
                      environment. Configure that environment outside the \
                      agent repair loop.\n{}",
-                    check.name,
-                    diagnostics
+                    check.name, diagnostics
                 ),
             });
         }
@@ -429,7 +387,6 @@ async fn run_check(
         diagnostics,
     })
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -518,27 +475,16 @@ mod tests {
 
     #[test]
     fn diagnostic_cleanup_removes_terminal_colors() {
-        assert_eq!(
-            clean_diagnostics("\x1b[31merror\x1b[0m\n"),
-            "error\n"
-        );
+        assert_eq!(clean_diagnostics("\x1b[31merror\x1b[0m\n"), "error\n");
     }
 
     #[test]
     fn detects_explicit_python_pytest_invocation() {
-        let check = CheckSpec::new(
-            "Python tests",
-            "python3",
-            &["-m", "pytest", "-q"],
-        );
+        let check = CheckSpec::new("Python tests", "python3", &["-m", "pytest", "-q"]);
 
         assert!(is_pytest_check(&check));
 
-        let other = CheckSpec::new(
-            "Other command",
-            "python3",
-            &["script.py"],
-        );
+        let other = CheckSpec::new("Other command", "python3", &["script.py"]);
 
         assert!(!is_pytest_check(&other));
     }
@@ -567,5 +513,4 @@ mod tests {
         assert!(captured.contains("discarded"));
         assert!(captured.len() < CAPTURE_LIMIT + 256);
     }
-
 }
