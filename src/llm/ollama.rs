@@ -86,6 +86,7 @@ pub struct OllamaBackend {
     recent_turns: usize,
     keep_alive: String,
     web_tools: bool,
+    read_tool: bool,
     preview: bool,
 }
 
@@ -149,10 +150,15 @@ impl OllamaBackend {
             keep_alive: std::env::var("TURTLE_KEEP_ALIVE").unwrap_or_else(|_| "5m".into()),
             preview: env_bool("TURTLE_STREAM_PREVIEW", true),
             web_tools: false,
+            read_tool: false,
         }
     }
     pub fn with_web_tools(mut self, enabled: bool) -> Self {
         self.web_tools = enabled;
+        self
+    }
+    pub fn with_read_tool(mut self, enabled: bool) -> Self {
+        self.read_tool = enabled;
         self
     }
 
@@ -241,9 +247,12 @@ impl OllamaBackend {
             "model": self.model_name,
             "messages": messages,
             "stream": true,
-            "format": crate::web::response_schema(
-                action_response_schema(),
-                self.web_tools,
+            "format": crate::inspect::response_schema(
+                crate::web::response_schema(
+                    action_response_schema(),
+                    self.web_tools,
+                ),
+                self.read_tool,
             ),
             "keep_alive": self.keep_alive,
             "options": {

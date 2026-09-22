@@ -2,7 +2,11 @@ use crate::agent::state::VerificationStatus;
 use crate::agent::{Action, AgentState};
 use crate::brain::ContextBrain;
 use crate::config::Config;
+use crate::index::SourceIndex;
+use crate::inspect::{InspectAction, InspectSession};
 use crate::languages;
+use crate::languages::baseline::Baseline;
+use crate::languages::diagnostics::Extractor;
 use crate::languages::verify::{self, VerificationOutcome};
 use crate::llm::LlmBackend;
 use crate::tools;
@@ -49,6 +53,12 @@ pub struct Agent<'a> {
     config: &'a Config,
     brain: ContextBrain,
     web: Option<&'a WebSession>,
+    inspect: Option<&'a InspectSession>,
+    index: Option<SourceIndex>,
+    diagnostics: Extractor,
+    baseline: Baseline,
+    toolchain: String,
+    index_load_bytes: u64,
 }
 
 fn limit(name: &str, default: usize, min: usize, max: usize) -> usize {
@@ -405,11 +415,121 @@ impl<'a> Agent<'a> {
             config,
             brain: ContextBrain::load(&config.project_dir),
             web: None,
+            inspect: None,
+            index: None,
+            diagnostics: Extractor::builtin(),
+            baseline: Baseline::default(),
+            toolchain: String::new(),
+            index_load_bytes: 2_097_152,
         }
     }
+
     pub fn with_web(mut self, web: &'a WebSession) -> Self {
         self.web = Some(web);
         self
+    }
+
+    pub fn with_inspect(mut self, inspect: &'a InspectSession) -> Self {
+        self.inspect = Some(inspect);
+        self
+    }
+
+    pub fn with_index(mut self, index: SourceIndex, load_bytes: u64) -> Self {
+        self.index = Some(index);
+        self.index_load_bytes = load_bytes;
+        self
+    }
+
+    pub fn with_diagnostics(mut self, diagnostics: Extractor) -> Self {
+        self.diagnostics = diagnostics;
+        self
+    }
+
+    pub fn with_baseline(mut self, baseline: Baseline) -> Self {
+        self.baseline = baseline;
+        self
+    }
+
+    pub fn with_toolchain_evidence(mut self, evidence: String) -> Self {
+        self.toolchain = evidence;
+        self
+    }
+
+    fn sources_for(&mut self, query: &str) -> Result<(Vec<SourceFile>, String)> {
+        let Some(index) = self.index.as_mut() else {
+            return Ok((scan_sources(&self.config.project_dir)?, String::new()));
+        };
+
+        let stats = index.refresh(&self.config.project_dir)?;
+
+        if self.config.debug {
+            println!(
+                "Index: {} file(s) tracked, {} re-read, {} removed ({})",
+                stats.indexed,
+                stats.reread,
+                stats.removed,
+                index.location().display()
+            );
+        }
+
+        let inventory = index.inventory_block();
+        let candidates = index.candidates(query);
+
+        let loaded = crate::index::load_sources(
+            &self.config.project_dir,
+            &candidates,
+            self.index_load_bytes,
+        )?;
+
+        index.save_best_effort();
+
+        if loaded.is_empty() {
+            return Ok((scan_sources(&self.config.project_dir)?, inventory));
+        }
+
+        Ok((
+            loaded
+                .into_iter()
+                .map(|(path, content)| SourceFile { path, content })
+                .collect(),
+            inventory,
+        ))
+    }
+
+    fn assemble_context(&self, inventory: &str, view: &str) -> String {
+        let mut context = self.brain.decisions_block();
+
+        if !self.toolchain.is_empty() {
+            context.push_str(&self.toolchain);
+        }
+
+        let baseline = self.baseline.prompt_block();
+
+        if !baseline.is_empty() {
+            context.push_str(&baseline);
+        }
+
+        if self.inspect.is_some() {
+            context.push_str("\n\n");
+            context.push_str(crate::inspect::SYSTEM_EXTENSION);
+        }
+
+        if !inventory.is_empty() {
+            context.push_str("\n\n");
+            context.push_str(inventory);
+        }
+
+        context.push_str("\n\n");
+        context.push_str(view);
+        context
+    }
+
+    async fn merge_disclosures(&self, view: &mut ProjectView) {
+        if let Some(inspect) = self.inspect {
+            for (path, content) in inspect.complete_disclosures().await {
+                view.shown.entry(path).or_insert(content);
+            }
+        }
     }
 
     pub async fn run(&mut self, task: &str) -> Result<AgentState> {
@@ -440,18 +560,20 @@ impl<'a> Agent<'a> {
             ..AgentState::default()
         };
 
-        let sources = scan_sources(&self.config.project_dir)?;
+        let (sources, inventory) = self.sources_for(task)?;
         self.brain.files.clear();
 
         for source in &sources {
             self.brain.record_file(&source.path, &source.content, 0);
         }
 
-        let view = build_view(&sources, task);
-        let context = format!("{}\n\n{}", self.brain.decisions_block(), view.text);
+        let mut view = build_view(&sources, task);
+        let context = self.assemble_context(&inventory, &view.text);
 
         let request = languages::implementation_prompt(task, &context);
         let action = self.complete_action(&request).await?;
+
+        self.merge_disclosures(&mut view).await;
         self.apply_action(&action, &view, &mut state).await?;
 
         let mut previous = String::new();
@@ -459,7 +581,7 @@ impl<'a> Agent<'a> {
         let mut attempted_diagnostics: Vec<String> = Vec::new();
 
         for repair in 0..=self.config.max_iterations {
-            let diagnostics = match verify::verify(self.config).await? {
+            let (failed_check, diagnostics) = match verify::verify(self.config).await? {
                 VerificationOutcome::Passed { checks } => {
                     for diagnostic in &attempted_diagnostics {
                         self.brain.mark_resolved(diagnostic);
@@ -479,6 +601,7 @@ impl<'a> Agent<'a> {
 
                     return Ok(state);
                 }
+
                 VerificationOutcome::Unavailable { reason } => {
                     state.done = false;
                     state.verification = VerificationStatus::Unavailable;
@@ -489,23 +612,24 @@ impl<'a> Agent<'a> {
 
                     return Ok(state);
                 }
-                VerificationOutcome::Failed { check, diagnostics } => {
-                    format!("Check: {check}\n{diagnostics}")
-                }
+
+                VerificationOutcome::Failed { check, diagnostics } => (check, diagnostics),
             };
 
-            let diagnostics = clipped(&diagnostics, 12_000);
+            let raw = format!("Check: {failed_check}\n{diagnostics}");
+            let clipped_diagnostics = clipped(&raw, 12_000);
+
             state.verification = VerificationStatus::Failed;
-            state.diagnostics = vec![diagnostics.clone()];
+            state.diagnostics = vec![clipped_diagnostics.clone()];
 
             if repair == self.config.max_iterations {
                 bail!(
                     "verification still fails after {repair} repair(s):\n\
-                     {diagnostics}\nWritten files have not been rolled back."
+                     {clipped_diagnostics}\nWritten files have not been rolled back."
                 );
             }
 
-            if diagnostics == previous {
+            if clipped_diagnostics == previous {
                 identical_failures += 1;
             } else {
                 identical_failures = 0;
@@ -513,19 +637,33 @@ impl<'a> Agent<'a> {
 
             ensure!(
                 identical_failures < 2,
-                "stopping after repeated identical failures:\n{diagnostics}"
+                "stopping after repeated identical failures:\n{clipped_diagnostics}"
             );
 
-            previous = diagnostics.clone();
+            previous = clipped_diagnostics.clone();
 
-            let sources = scan_sources(&self.config.project_dir)?;
-            let view = build_view(&sources, &format!("{task}\n{diagnostics}"));
+            let evidence = format!(
+                "{clipped_diagnostics}{}{}",
+                self.diagnostics.summary(&diagnostics),
+                self.baseline
+                    .attribution(&failed_check, &diagnostics, &self.diagnostics)
+            );
 
-            let note = self.brain.repeat_note(&diagnostics).unwrap_or_default();
+            let (sources, inventory) =
+                self.sources_for(&format!("{task}\n{clipped_diagnostics}"))?;
 
-            let request = languages::repair_prompt(task, &view.text, &diagnostics, &note);
+            let mut view = build_view(&sources, &format!("{task}\n{clipped_diagnostics}"));
+            let context = self.assemble_context(&inventory, &view.text);
+
+            let note = self
+                .brain
+                .repeat_note(&clipped_diagnostics)
+                .unwrap_or_default();
+            let request = languages::repair_prompt(task, &context, &evidence, &note);
 
             let action = self.complete_action(&request).await?;
+
+            self.merge_disclosures(&mut view).await;
             let written = self.apply_action(&action, &view, &mut state).await?;
 
             ensure!(
@@ -534,9 +672,9 @@ impl<'a> Agent<'a> {
             );
 
             self.brain
-                .record_error_attempt(&diagnostics, &written.join(", "));
+                .record_error_attempt(&clipped_diagnostics, &written.join(", "));
 
-            attempted_diagnostics.push(diagnostics);
+            attempted_diagnostics.push(clipped_diagnostics);
         }
 
         unreachable!()
@@ -544,15 +682,21 @@ impl<'a> Agent<'a> {
 
     async fn complete_action(&self, prompt: &str) -> Result<Action> {
         let tokens = limit("TURTLE_OUTPUT_TOKENS", 4096, 512, 65536) as u32;
+        let rounds = limit("TURTLE_ACTION_ROUNDS", 14, 3, 64);
 
         let mut correction = String::new();
         let mut invalid_responses = 0;
+        let mut tool_errors = 0;
 
-        for _ in 0..14 {
+        for _ in 0..rounds {
             let mut request = prompt.to_owned();
 
             if let Some(web) = self.web {
                 request.push_str(&web.prompt_suffix().await?);
+            }
+
+            if let Some(inspect) = self.inspect {
+                request.push_str(&inspect.prompt_suffix().await);
             }
 
             request.push_str(&correction);
@@ -566,6 +710,38 @@ impl<'a> Agent<'a> {
                     web.execute(action).await?;
                     correction.clear();
                     continue;
+                }
+            }
+
+            if let Some(inspect) = self.inspect {
+                if let Ok(Some(action)) = InspectAction::parse(&response) {
+                    self.llm.pop_last().await;
+
+                    match inspect.execute(action).await {
+                        Ok(()) => {
+                            correction.clear();
+                            continue;
+                        }
+
+                        Err(error) => {
+                            tool_errors += 1;
+
+                            ensure!(
+                                tool_errors <= 4,
+                                "too many rejected read_file requests: {error:#}"
+                            );
+
+                            correction = format!(
+                                "\n\nThe previous read_file request was rejected: {}.\n\
+                                Request a different discoverable project-relative \
+                                path, or continue with the information already \
+                                supplied.",
+                                clipped(&format!("{error:#}"), 800)
+                            );
+
+                            continue;
+                        }
+                    }
                 }
             }
 

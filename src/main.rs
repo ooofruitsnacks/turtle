@@ -5,19 +5,39 @@ use std::path::PathBuf;
 use std::time::Duration;
 use turtle::agent::Agent;
 use turtle::config::{ChecksFile, Config, Language, Runtime};
+use turtle::index::{IndexOptions, SourceIndex};
+use turtle::inspect::{InspectOptions, InspectSession};
+use turtle::languages::baseline::{self, BaselineOptions};
+use turtle::languages::diagnostics::{DiagnosticOptions, Extractor};
 use turtle::llm::ollama::task_lifecycle::TaskBackend;
 use turtle::llm::ollama::OllamaBackend;
 use turtle::project::Project;
+use turtle::toolchain::{self, ToolchainOptions};
 use turtle::web::{WebOptions, WebSession};
 
 #[derive(Parser, Debug)]
-#[command(name = "turtle", about = "Local multilingual coding assistant")]
+#[command(name = "turtle", about = "Locally hosted LLM coding assistant")]
 struct Args {
     #[arg(short, long, help = "Installed Ollama model name")]
     model: String,
 
     #[command(flatten)]
     web: WebOptions,
+
+    #[command(flatten)]
+    inspect: InspectOptions,
+
+    #[command(flatten)]
+    toolchain: ToolchainOptions,
+
+    #[command(flatten)]
+    diagnostics: DiagnosticOptions,
+
+    #[command(flatten)]
+    baseline: BaselineOptions,
+
+    #[command(flatten)]
+    index: IndexOptions,
 
     #[arg(
         short,
@@ -344,6 +364,47 @@ async fn main() -> Result<()> {
 
     prompt = attach_context_files(&prompt, &args.context_files, context_bytes)?;
 
+    let extractor = Extractor::new(&args.diagnostics)?;
+
+    let toolchain_evidence = toolchain::collect(&config, &args.toolchain).await?;
+
+    if args.baseline.baseline_verify {
+        ensure!(
+            args.allow_checks,
+            "--baseline-verify requires --allow-checks, because it runs the \
+             configured build/test commands before editing"
+        );
+    }
+
+    let baseline = baseline::capture(&config, &args.baseline, &extractor).await?;
+
+    if args.baseline.require_clean_baseline {
+        ensure!(
+            matches!(
+                baseline.status,
+                turtle::languages::baseline::BaselineStatus::Passed
+            ),
+            "the baseline checks did not pass ({}); \
+             repair the project or omit --require-clean-baseline",
+            baseline.headline()
+        );
+    }
+
+    let inspect = if args.inspect.allow_read_file {
+        Some(InspectSession::new(
+            &config.project_dir,
+            args.inspect.clone(),
+        )?)
+    } else {
+        None
+    };
+
+    let source_index = if args.index.no_index {
+        None
+    } else {
+        Some(SourceIndex::open(&config.project_dir, args.index.clone())?)
+    };
+
     let web = if args.web.allow_web {
         Some(WebSession::new(args.web.clone())?)
     } else {
@@ -368,10 +429,21 @@ async fn main() -> Result<()> {
     let task_backend = TaskBackend::new(&backend);
 
     let (task_result, shutdown_result) = {
-        let mut agent = Agent::new(&task_backend, &config);
+        let mut agent = Agent::new(&task_backend, &config)
+            .with_diagnostics(extractor)
+            .with_baseline(baseline)
+            .with_toolchain_evidence(toolchain_evidence);
+
+        if let Some(index) = source_index {
+            agent = agent.with_index(index, args.index.index_load_bytes);
+        }
 
         if let Some(web) = web.as_ref() {
             agent = agent.with_web(web);
+        }
+
+        if let Some(inspect) = inspect.as_ref() {
+            agent = agent.with_inspect(inspect);
         }
 
         let task = agent.run(&prompt);

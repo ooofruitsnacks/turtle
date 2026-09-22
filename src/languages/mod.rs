@@ -1,6 +1,8 @@
 use crate::config::{Config, Language, Runtime};
 use std::path::Path;
 
+pub mod baseline;
+pub mod diagnostics;
 pub mod verify;
 
 pub fn guidance(language: Language) -> &'static str {

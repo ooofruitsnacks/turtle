@@ -1,0 +1,23 @@
+{
+  "probes": [
+    {
+      "name": "project interpreter",
+      "program": "/absolute/path/to/project/.venv/bin/python",
+      "args": ["--version"],
+      "timeout_secs": 15
+    },
+    {
+      "name": "pytest version",
+      "program": "/absolute/path/to/project/.venv/bin/python",
+      "args": ["-m", "pytest", "--version"],
+      "timeout_secs": 30
+    },
+    {
+      "name": "installed packages",
+      "program": "/absolute/path/to/project/.venv/bin/python",
+      "args": ["-m", "pip", "list", "--disable-pip-version-check"],
+      "timeout_secs": 60
+    }
+  ]
+}
+
